@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics · Grupo Vitae Brasil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink: #101418; --ink-2: #5b6470; --ink-3: #98a0aa;
+  --line: #eceef0; --line-2: #f3f4f6; --bg: #ffffff; --wash: #fafbfc; --navy: #002737;
+  --up: #0e9f6e; --dn: #d64545; --amb: #c98a1e;
+  --font: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+}
+html, body { font-family: var(--font); color: var(--ink); background: var(--bg); font-size: 16px; -webkit-font-smoothing: antialiased; }
+button, input, select { font-family: var(--font); }
+
+/* ── LOGIN ── */
+#view-login {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #fafbfd 0%, #f4f6f9 55%, #eef1f6 100%);
+}
+#view-login.hide { display: none; }
+.login-card { width: 100%; max-width: 380px; padding: 40px; }
+.login-mark { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 28px; }
+.login-mark span { color: var(--ink-3); font-weight: 500; }
+.login-title { font-size: 24px; font-weight: 750; letter-spacing: -.02em; margin-bottom: 6px; }
+.login-sub { font-size: 13.5px; color: var(--ink-2); margin-bottom: 28px; }
+.login-field { margin-bottom: 16px; }
+.login-field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; }
+.login-field input {
+  width: 100%; font-size: 14px; padding: 11px 13px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--wash);
+}
+.login-field input:focus { outline: 2px solid var(--navy); outline-offset: 1px; border-color: transparent; }
+.login-btn {
+  width: 100%; margin-top: 8px; padding: 12px; font-size: 14px; font-weight: 600;
+  color: #fff; background: var(--navy); border: none; border-radius: 8px; cursor: pointer;
+}
+.login-btn:hover { opacity: .92; }
+.login-note { font-size: 11.5px; color: var(--ink-3); margin-top: 16px; line-height: 1.5; }
+.login-error { font-size: 12.5px; color: var(--dn); margin-top: 10px; display: none; }
+
+/* ── APP SHELL ── */
+#view-app { display: none; }
+#view-app.show { display: block; }
+
+.topbar {
+  height: 60px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; position: sticky; top: 0; z-index: 200;
+  background: rgba(255,255,255,.94); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.tb-mark { font-size: 13px; font-weight: 700; color: var(--navy); }
+.tb-mark span { color: var(--ink-3); font-weight: 500; }
+.tb-logout { font-size: 12.5px; color: var(--ink-3); background: none; border: none; cursor: pointer; }
+.tb-logout:hover { color: var(--ink); }
+
+.company-rail {
+  display: flex; gap: 8px; overflow-x: auto; padding: 14px 32px; border-bottom: 1px solid var(--line);
+  background: var(--wash);
+}
+.company-pill {
+  display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 20px;
+  background: #fff; border: 1px solid var(--line); font-size: 12.5px; font-weight: 500; color: var(--ink-2);
+  cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s;
+}
+.company-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.company-pill.active { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.company-pill .rd-badge { font-size: 9.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+
+.tabs-wrap { position: sticky; top: 60px; z-index: 190; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.tabs { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 24px; overflow-x: auto; }
+.tab { padding: 14px 0 12px; font-size: 13.5px; font-weight: 500; color: var(--ink-3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--navy); }
+
+.subnav-wrap { position: sticky; top: 105px; z-index: 180; background: var(--wash); border-bottom: 1px solid var(--line); }
+.subnav { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 8px; overflow-x: auto; }
+.stab { padding: 10px 12px; font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: none; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.stab.active { color: var(--navy); background: #fff; }
+
+.content { max-width: 1128px; margin: 0 auto; padding: 32px; }
+
+/* ── CARDS / GRID ── */
+.grid { display: grid; gap: 16px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 900px) { .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+
+.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.kpi-label { font-size: 12px; color: var(--ink-3); font-weight: 500; margin-bottom: 8px; }
+.kpi-value { font-size: 26px; font-weight: 750; letter-spacing: -.01em; }
+.kpi-delta { font-size: 12px; font-weight: 600; margin-top: 6px; }
+.kpi-delta.up { color: var(--up); } .kpi-delta.dn { color: var(--dn); }
+
+.section-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.section-sub { font-size: 12.5px; color: var(--ink-3); margin-bottom: 16px; }
+
+.status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 20px; }
+.status-badge.bom { background: #eaf6f0; color: var(--up); }
+.status-badge.atencao { background: #fdf3e3; color: var(--amb); }
+.status-badge.critico { background: #fbeaea; color: var(--dn); }
+
+.summary-text { font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+
+table.rank { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.rank th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line); }
+table.rank td { padding: 10px 12px; border-bottom: 1px solid var(--line-2); }
+table.rank tr:last-child td { border-bottom: none; }
+
+.heatmap { display: grid; grid-template-columns: 40px repeat(24, 1fr); gap: 2px; }
+.heatmap .hcell { aspect-ratio: 1; border-radius: 2px; }
+.heatmap .hlabel { font-size: 10px; color: var(--ink-3); display: flex; align-items: center; }
+
+.gauge-wrap { display: flex; align-items: center; gap: 16px; }
+.gauge { width: 88px; height: 88px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; }
+
+.geo-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.geo-row:last-child { border-bottom: none; }
+.geo-name { width: 90px; font-size: 13px; font-weight: 500; }
+.geo-bar-track { flex: 1; height: 8px; background: var(--line-2); border-radius: 4px; overflow: hidden; }
+.geo-bar-fill { height: 100%; border-radius: 4px; }
+.geo-pct { width: 44px; text-align: right; font-size: 12.5px; font-weight: 600; }
+
+.stub-card { border: 1px dashed var(--line); border-radius: 12px; padding: 24px; background: var(--wash); }
+.stub-card .section-title { color: var(--ink-2); }
+.stub-list { font-size: 13px; color: var(--ink-2); line-height: 1.9; margin-top: 10px; }
+.stub-tag { display: inline-block; font-size: 10.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; margin-bottom: 10px; }
+
+.alert-feed { display: flex; flex-direction: column; gap: 10px; }
+.alert-card { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); }
+.alert-sev { width: 8px; border-radius: 4px; flex-shrink: 0; }
+.alert-sev.critico { background: var(--dn); } .alert-sev.atencao { background: var(--amb); } .alert-sev.info { background: var(--ink-3); }
+.alert-title { font-size: 13.5px; font-weight: 600; }
+.alert-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+
+.chart-box { height: 260px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="view-login">
+  <div class="login-card">
+    <div class="login-mark">VITAE BRASIL <span>· analytics</span></div>
+    <div class="login-title">Entrar</div>
+    <div class="login-sub">Acesso restrito ao time de marketing e comunicação.</div>
+    <form id="loginForm">
+      <div class="login-field">
+        <label for="loginEmail">E-mail</label>
+        <input id="loginEmail" type="email" required placeholder="voce@grupovitaebrasil.com.br">
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Senha</label>
+        <input id="loginPass" type="password" required placeholder="••••••••">
+      </div>
+      <button class="login-btn" type="submit">Entrar</button>
+      <div class="login-error" id="loginError">E-mail ou senha inválidos.</div>
+    </form>
+    <div class="login-note">
+      Login provisório (front-end only) enquanto a autenticação via Supabase
+      Auth não é conectada. Qualquer e-mail/senha preenchidos entram por
+      enquanto — isso será substituído por auth real na etapa de backend.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="view-app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="tb-mark">GRUPO VITAE BRASIL <span>· analytics</span></div>
+    </div>
+    <button class="tb-logout" id="logoutBtn">Sair</button>
+  </div>
+
+  <div class="company-rail" id="companyRail"></div>
+
+  <div class="tabs-wrap">
+    <div class="tabs" id="mainTabs"></div>
+  </div>
+  <div class="subnav-wrap" id="subnavWrap">
+    <div class="subnav" id="subnav"></div>
+  </div>
+
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════
+   DADOS BASE
+   ════════════════════════════════════════════════════ */
+const COMPANIES = [
+  { id:'faz',      name:'Faz Educação',     dot:'#1DB3E8', rd:true  },
+  { id:'planneta', name:'Planneta Educação',dot:'#f29106', rd:false },
+  { id:'solum',    name:'Solum Ambiental',  dot:'#008237', rd:false },
+  { id:'albert',   name:'Albert',           dot:'#7B3FA0', rd:true  },
+  { id:'vitae',    name:'Vitae Brasil',     dot:'#005caa', rd:false },
+  { id:'namura',   name:'Luis Namura',      dot:'#b5684b', rd:true  },
+];
+
+const MAIN_TABS = [
+  { id:'analytics', label:'Analytics & SEO' },
+  { id:'social',     label:'Redes sociais' },
+  { id:'rd',          label:'RD Station', rdOnly:true },
+];
+
+const ANALYTICS_SECTIONS = [
+  { id:'01', label:'Resumo geral' },
+  { id:'02', label:'Acessos ao site' },
+  { id:'03', label:'Engajamento' },
+  { id:'04', label:'Conteúdo' },
+  { id:'06', label:'Origem dos acessos' },
+  { id:'07', label:'SEO' },
+  { id:'08', label:'GEO (IA generativa)' },
+  { id:'09', label:'Performance técnica' },
+  { id:'10', label:'Benchmark concorrentes' },
+  { id:'11', label:'Comparativo do grupo' },
+  { id:'12', label:'Alertas' },
+];
+
+let activeCompany = 'faz';
+let activeTab = 'analytics';
+let activeSection = '01';
+
+/* ════════════════════════════════════════════════════
+   MOCK DATA — mesmo formato das tabelas do Supabase.
+   Trocar por fetch() ao Postgres quando o backend estiver pronto.
+   ════════════════════════════════════════════════════ */
+function seed(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return () => { h = (h * 1103515245 + 12345) >>> 0; return (h % 1000) / 1000; };
+}
+
+function mockGA4(companyId) {
+  const r = seed(companyId + 'ga4');
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun'];
+  const base = 3000 + Math.floor(r() * 5000);
+  const users = months.map((_, i) => Math.floor(base * (0.85 + r() * 0.4) * (1 + i * 0.03)));
+  return {
+    users: users.reduce((a,b) => a+b, 0),
+    newUsers: Math.floor(users.reduce((a,b)=>a+b,0) * (0.55 + r()*0.15)),
+    sessions: Math.floor(users.reduce((a,b)=>a+b,0) * (1.2 + r()*0.3)),
+    pageviews: Math.floor(users.reduce((a,b)=>a+b,0) * (2.4 + r()*0.6)),
+    bounceRate: Math.round((35 + r()*25) * 10) / 10,
+    deltaPct: Math.round((r()*30 - 10) * 10) / 10,
+    months, usersSeries: users,
+    devices: [
+      { label:'Mobile',  value: Math.round(55 + r()*15) },
+      { label:'Desktop', value: Math.round(25 + r()*15) },
+      { label:'Tablet',  value: Math.round(5 + r()*5) },
+    ],
+  };
+}
+
+function mockGSC(companyId) {
+  const r = seed(companyId + 'gsc');
+  const kws = ['formação de professores','educação municipal pública','tecnologia educacional','inclusão digital escolar','plataforma de gestão escolar'];
+  return {
+    impressions: Math.floor(20000 + r()*80000),
+    clicks: Math.floor(800 + r()*4000),
+    ctr: Math.round((1.5 + r()*4) * 10) / 10,
+    position: Math.round((8 + r()*15) * 10) / 10,
+    indexedPct: Math.round(70 + r()*28),
+    keywords: kws.map(k => ({
+      query: k,
+      clicks: Math.floor(20 + r()*300),
+      impressions: Math.floor(500 + r()*5000),
+      position: Math.round((3 + r()*20) * 10) / 10,
+      delta: Math.round((r()*10 - 4) * 10) / 10,
+    })),
+  };
+}
+
+function mockGEO(companyId) {
+  const r = seed(companyId + 'geo');
+  const platforms = ['ChatGPT','Gemini','Claude','Perplexity','Copilot','Meta AI'];
+  const colors = ['#0e9f6e','#005caa','#7B3FA0','#c98a1e','#1DB3E8','#d64545'];
+  return platforms.map((p, i) => ({
+    platform: p,
+    color: colors[i],
+    citationRate: Math.round(r()*40),
+    referralSessions: Math.floor(r()*400),
+  }));
+}
+
+/* ════════════════════════════════════════════════════
+   LOGIN
+   ════════════════════════════════════════════════════ */
+document.getElementById('loginForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
+  if (!email || !pass) {
+    document.getElementById('loginError').style.display = 'block';
+    return;
+  }
+  sessionStorage.setItem('vitae_logged_in', '1');
+  document.getElementById('view-login').classList.add('hide');
+  document.getElementById('view-app').classList.add('show');
+  boot();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('vitae_logged_in');
+  document.getElementById('view-app').classList.remove('show');
+  document.getElementById('view-login').classList.remove('hide');
+});
+
+if (sessionStorage.getItem('vitae_logged_in') === '1') {
+  document.getElementById('view-login').classList.add('hide');
+  document.getElementById('view-app').classList.add('show');
+  boot();
+}
+
+/* ════════════════════════════════════════════════════
+   SHELL: empresas, tabs, subnav
+   ════════════════════════════════════════════════════ */
+function boot() {
+  renderCompanyRail();
+  renderMainTabs();
+  renderSubnav();
+  renderContent();
+}
+
+function renderCompanyRail() {
+  const rail = document.getElementById('companyRail');
+  rail.innerHTML = '';
+  COMPANIES.forEach(c => {
+    const pill = document.createElement('button');
+    pill.className = 'company-pill' + (c.id === activeCompany ? ' active' : '');
+    pill.innerHTML = `<span class="dot" style="background:${c.dot}"></span>${c.name}` +
+      (c.rd ? '<span class="rd-badge">RD</span>' : '');
+    pill.onclick = () => { activeCompany = c.id; if (activeTab === 'rd' && !c.rd) activeTab = 'analytics'; boot(); };
+    rail.appendChild(pill);
+  });
+}
+
+function renderMainTabs() {
+  const wrap = document.getElementById('mainTabs');
+  const company = COMPANIES.find(c => c.id === activeCompany);
+  wrap.innerHTML = '';
+  MAIN_TABS.filter(t => !t.rdOnly || company.rd).forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (t.id === activeTab ? ' active' : '');
+    btn.textContent = t.label;
+    btn.onclick = () => { activeTab = t.id; renderMainTabs(); renderSubnav(); renderContent(); };
+    wrap.appendChild(btn);
+  });
+}
+
+function renderSubnav() {
+  const wrap = document.getElementById('subnav');
+  const subnavWrap = document.getElementById('subnavWrap');
+  if (activeTab !== 'analytics') { subnavWrap.style.display = 'none'; return; }
+  subnavWrap.style.display = 'block';
+  wrap.innerHTML = '';
+  ANALYTICS_SECTIONS.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'stab' + (s.id === activeSection ? ' active' : '');
+    btn.textContent = s.id + ' · ' + s.label;
+    btn.onclick = () => { activeSection = s.id; renderSubnav(); renderContent(); };
+    wrap.appendChild(btn);
+  });
+}
+
+/* ════════════════════════════════════════════════════
+   CONTEÚDO
+   ════════════════════════════════════════════════════ */
+function renderContent() {
+  const el = document.getElementById('content');
+  el.innerHTML = '';
+  if (activeTab === 'social') { el.innerHTML = stubPanel('Redes sociais', 'Alimentado pelo Reportei — em construção nesta interface.', []); return; }
+  if (activeTab === 'rd') { el.innerHTML = stubPanel('RD Station', 'Leads, MQLs e taxa de conversão — em construção nesta interface.', []); return; }
+
+  const renderers = {
+    '01': renderResumo, '02': renderAcessos, '03': renderStub03,
+    '04': renderStub04, '06': renderStub06, '07': renderSEO,
+    '08': renderGEO, '09': renderStub09, '10': renderStub10,
+    '11': renderStub11, '12': renderAlertas,
+  };
+  (renderers[activeSection] || (() => {}))();
+}
+
+function stubPanel(title, sub, fields) {
+  return `<div class="stub-card">
+    <span class="stub-tag">Em construção</span>
+    <div class="section-title">${title}</div>
+    <div class="section-sub">${sub}</div>
+    ${fields.length ? `<ul class="stub-list">${fields.map(f=>`<li>${f}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+function kpiCard(label, value, delta) {
+  const dir = delta >= 0 ? 'up' : 'dn';
+  const sign = delta >= 0 ? '+' : '';
+  return `<div class="card">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-delta ${dir}">${sign}${delta}% vs. período anterior</div>
+  </div>`;
+}
+
+let chartInstances = [];
+function destroyCharts() { chartInstances.forEach(c => c.destroy()); chartInstances = []; }
+
+/* ── 01 · Resumo geral ── */
+function renderResumo() {
+  destroyCharts();
+  const d = mockGA4(activeCompany);
+  const status = d.deltaPct > 5 ? 'bom' : d.deltaPct > -5 ? 'atencao' : 'critico';
+  const statusLabel = { bom:'Bom', atencao:'Atenção', critico:'Crítico' }[status];
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <span class="status-badge ${status}">● ${statusLabel}</span>
+      <p class="summary-text" style="margin-top:14px">
+        No período, o site registrou ${d.users.toLocaleString('pt-BR')} usuários e
+        ${d.sessions.toLocaleString('pt-BR')} sessões, uma variação de ${d.deltaPct}%
+        frente ao período anterior. A taxa de rejeição ficou em ${d.bounceRate}%.
+        ${d.deltaPct > 0 ? 'O tráfego segue em crescimento consistente.' : 'O tráfego apresentou queda e merece atenção.'}
+      </p>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${kpiCard('Usuários', d.users.toLocaleString('pt-BR'), d.deltaPct)}
+      ${kpiCard('Novos usuários', d.newUsers.toLocaleString('pt-BR'), d.deltaPct - 2)}
+      ${kpiCard('Sessões', d.sessions.toLocaleString('pt-BR'), d.deltaPct + 1)}
+      ${kpiCard('Visualizações', d.pageviews.toLocaleString('pt-BR'), d.deltaPct - 1)}
+    </div>
+    <div class="card">
+      <div class="section-title">Evolução do tráfego</div>
+      <div class="section-sub">Usuários por mês</div>
+      <div class="chart-box"><canvas id="chResumo"></canvas></div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chResumo'), {
+    type:'line',
+    data:{ labels:d.months, datasets:[{ data:d.usersSeries, borderColor:'#005caa', backgroundColor:'rgba(0,92,170,.08)', fill:true, tension:.35, pointRadius:0 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
+}
+
+/* ── 02 · Acessos ao site ── */
+function renderAcessos() {
+  destroyCharts();
+  const d = mockGA4(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${kpiCard('Usuários totais', d.users.toLocaleString('pt-BR'), d.deltaPct)}
+      ${kpiCard('Novos usuários', d.newUsers.toLocaleString('pt-BR'), d.deltaPct - 2)}
+      ${kpiCard('Sessões / usuário', (d.sessions / d.users).toFixed(2), 1.2)}
+      ${kpiCard('Páginas / sessão', (d.pageviews / d.sessions).toFixed(2), -0.6)}
+    </div>
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div class="card"><div class="section-title">Evolução de sessões</div><div class="chart-box"><canvas id="chAcessosLine"></canvas></div></div>
+      <div class="card"><div class="section-title">Por dispositivo</div><div class="chart-box"><canvas id="chAcessosPie"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Padrão de acesso (dia × horário)</div>
+      <div class="section-sub">Intensidade de sessões</div>
+      <div id="heatmapWrap"></div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chAcessosLine'), {
+    type:'line',
+    data:{ labels:d.months, datasets:[{ data:d.usersSeries.map(v=>Math.round(v*1.25)), borderColor:'#1DB3E8', backgroundColor:'rgba(29,179,232,.08)', fill:true, tension:.35, pointRadius:0 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
+  chartInstances.push(new Chart(document.getElementById('chAcessosPie'), {
+    type:'doughnut',
+    data:{ labels:d.devices.map(x=>x.label), datasets:[{ data:d.devices.map(x=>x.value), backgroundColor:['#005caa','#1DB3E8','#c98a1e'] }]},
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}} }
+  }));
+
+  const r = seed(activeCompany + 'heat');
+  const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let grid = '<div class="heatmap">';
+  grid += '<div></div>';
+  for (let h=0; h<24; h++) grid += `<div class="hlabel" style="justify-content:center">${h%3===0?h:''}</div>`;
+  days.forEach(day => {
+    grid += `<div class="hlabel">${day}</div>`;
+    for (let h=0; h<24; h++) {
+      const v = r();
+      grid += `<div class="hcell" style="background: rgba(0,92,170,${(v*0.85).toFixed(2)})"></div>`;
+    }
+  });
+  grid += '</div>';
+  document.getElementById('heatmapWrap').innerHTML = grid;
+}
+
+/* ── 07 · SEO ── */
+function renderSEO() {
+  destroyCharts();
+  const d = mockGSC(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${kpiCard('Impressões', d.impressions.toLocaleString('pt-BR'), 6.4)}
+      ${kpiCard('Cliques', d.clicks.toLocaleString('pt-BR'), 4.1)}
+      ${kpiCard('CTR médio', d.ctr + '%', 0.8)}
+      ${kpiCard('Posição média', d.position, -1.4)}
+    </div>
+    <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px">
+      <div class="card">
+        <div class="section-title">Principais palavras-chave</div>
+        <table class="rank">
+          <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
+          <tbody>
+            ${d.keywords.map(k => `<tr>
+              <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
+              <td>${k.position}</td>
+              <td style="color:${k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta>=0?'+':''}${k.delta}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="section-title">Páginas indexadas</div>
+        <div class="gauge-wrap" style="margin-top:12px">
+          <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
+          <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── 08 · GEO ── */
+function renderGEO() {
+  destroyCharts();
+  const d = mockGEO(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-2" style="gap:16px">
+      <div class="card">
+        <div class="section-title">Taxa de citação por plataforma de IA</div>
+        <div class="section-sub">% das consultas relevantes em que a marca aparece citada</div>
+        ${d.map(p => `<div class="geo-row">
+          <div class="geo-name">${p.platform}</div>
+          <div class="geo-bar-track"><div class="geo-bar-fill" style="width:${p.citationRate}%; background:${p.color}"></div></div>
+          <div class="geo-pct">${p.citationRate}%</div>
+        </div>`).join('')}
+      </div>
+      <div class="card">
+        <div class="section-title">Tráfego de referência por IA</div>
+        <div class="chart-box"><canvas id="chGeoBar"></canvas></div>
+      </div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chGeoBar'), {
+    type:'bar',
+    data:{ labels:d.map(p=>p.platform), datasets:[{ data:d.map(p=>p.referralSessions), backgroundColor:d.map(p=>p.color) }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
+}
+
+/* ── 12 · Alertas ── */
+function renderAlertas() {
+  destroyCharts();
+  const r = seed(activeCompany + 'alerts');
+  const templates = [
+    { sev:'critico', title:'Queda abrupta de tráfego', desc:'Sessões caíram mais de 30% na última semana em relação à média do mês.' },
+    { sev:'atencao',  title:'Página lenta com muito tráfego', desc:'A página de destino principal está acima do limite aceitável de LCP.' },
+    { sev:'atencao',  title:'Palavra-chave próxima da 1ª página', desc:'Uma palavra-chave estratégica está na posição 11, a um passo da primeira página.' },
+    { sev:'info',      title:'Conteúdo com bom desempenho em IA', desc:'Um artigo tem mais referências vindas de IA generativa do que de busca tradicional.' },
+  ];
+  const chosen = templates.filter(() => r() > 0.3);
+  document.getElementById('content').innerHTML = `
+    <div class="alert-feed">
+      ${(chosen.length ? chosen : templates.slice(0,1)).map(a => `
+        <div class="alert-card">
+          <div class="alert-sev ${a.sev}"></div>
+          <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+/* ── Stubs — estrutura pronta, aguardando dados ── */
+function renderStub03() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '03 · Engajamento e comportamento',
+    'Depende só de mais uma métrica do GA4.',
+    ['Taxa de rejeição (já disponível na aba Acessos, mover pra cá na próxima passada)']
+  );
+}
+function renderStub04() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '04 · Conteúdo mais acessado',
+    'Fonte: tabela ga4_pages.',
+    ['Ranking de páginas mais acessadas', 'Ranking de páginas com maior crescimento', 'Ranking por tempo de permanência', 'Conteúdos antigos com tráfego relevante']
+  );
+}
+function renderStub06() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '06 · Origem dos acessos',
+    'Fonte: tabela ga4_traffic_sources.',
+    ['Distribuição por canal (orgânico, direto, social, referência, pago, IA)', 'Detalhamento por rede social', 'Principais domínios de referência']
+  );
+}
+function renderStub09() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '09 · Performance técnica',
+    'Fonte: tabelas core_web_vitals e site_uptime.',
+    ['Core Web Vitals (LCP, CLS, INP)', 'Desempenho mobile vs. desktop', 'Uptime do site']
+  );
+}
+function renderStub10() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '10 · Benchmark de concorrentes',
+    'Fonte: tabela competitor_benchmark — dados estimados via SimilarWeb/SEMrush, sempre exibidos como estimativa.',
+    ['Estimativa de tráfego comparado', 'Comparativo de palavras-chave em comum', 'Comparativo de presença em IA (GEO)', 'Comparativo de autoridade de domínio']
+  );
+}
+function renderStub11() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = stubPanel(
+    '11 · Comparativo entre sites do grupo',
+    'Visão cruzando ga4_daily_metrics de todas as 6 empresas — melhor como uma aba própria fora do contexto de uma única empresa.',
+    ['Ranking de sites por acesso, engajamento e conversão', 'Comparativo entre projetos', 'Sites com maior evolução e maior queda no período']
+  );
+}
+</script>
+</body>
+</html>
