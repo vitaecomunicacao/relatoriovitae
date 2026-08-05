@@ -291,6 +291,100 @@ function mockGEO(companyId) {
   }));
 }
 
+function mockEngajamento(companyId) {
+  const r = seed(companyId + 'engaj');
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun'];
+  const base = 35 + r()*25;
+  return {
+    months,
+    bounceSeries: months.map((_,i) => Math.round((base + (r()-0.5)*8 - i*0.6) * 10) / 10),
+    bounceRate: Math.round(base * 10) / 10,
+    avgEngagementTime: Math.round(40 + r()*90),
+    deltaPct: Math.round((r()*20 - 10) * 10) / 10,
+  };
+}
+
+function mockConteudo(companyId) {
+  const r = seed(companyId + 'conteudo');
+  const paths = [
+    '/blog/formacao-de-professores','/blog/inclusao-digital','/diagnostico',
+    '/blog/tecnologia-educacional','/sobre','/blog/educacao-ambiental',
+    '/blog/gestao-escolar','/contato','/blog/copa-do-mundo-em-sala-de-aula',
+    '/blog/dia-das-maes-2023',
+  ];
+  return paths.map((p, i) => ({
+    path: p,
+    pageviews: Math.floor(300 + r()*4000),
+    growthPct: Math.round((r()*60 - 20) * 10) / 10,
+    avgTime: Math.round(30 + r()*180),
+    isOld: i >= paths.length - 2,
+  }));
+}
+
+function mockOrigem(companyId) {
+  const r = seed(companyId + 'origem');
+  const channels = [
+    { label:'Orgânico',   color:'#005caa' }, { label:'Direto',     color:'#1DB3E8' },
+    { label:'Social',     color:'#7B3FA0' }, { label:'Referência', color:'#c98a1e' },
+    { label:'Pago',       color:'#d64545' }, { label:'IA',         color:'#0e9f6e' },
+  ];
+  const raw = channels.map(() => 5 + r()*30);
+  const total = raw.reduce((a,b)=>a+b, 0);
+  const dist = channels.map((c,i) => ({ ...c, pct: Math.round(raw[i]/total*1000)/10 }));
+  const domains = ['google.com','instagram.com','linkedin.com','facebook.com','educacao.sp.gov.br']
+    .map(d => ({ domain:d, sessions: Math.floor(50 + r()*900) }))
+    .sort((a,b) => b.sessions - a.sessions);
+  return { dist, domains };
+}
+
+function mockPerformance(companyId) {
+  const r = seed(companyId + 'perf');
+  const lcp = Math.round((1.6 + r()*3.2) * 10) / 10;
+  const cls = Math.round((0.02 + r()*0.28) * 100) / 100;
+  const inp = Math.round(120 + r()*400);
+  const errors = ['/blog/pagina-antiga-1','/materiais/apostila.pdf','/blog/evento-2022']
+    .map(p => ({ path:p, code: r() > 0.5 ? 404 : 500, hits: Math.floor(5 + r()*80) }));
+  return {
+    lcp, cls, inp,
+    uptime: Math.round((98 + r()*2) * 100) / 100,
+    mobileLcp: Math.round((lcp * (1.1 + r()*0.3)) * 10) / 10,
+    desktopLcp: Math.round((lcp * (0.7 + r()*0.2)) * 10) / 10,
+    errors,
+  };
+}
+
+function vitalStatus(metric, value) {
+  const t = { lcp:[2.5,4], cls:[0.1,0.25], inp:[200,500] }[metric];
+  if (value <= t[0]) return { label:'Bom', color:'#0e9f6e' };
+  if (value <= t[1]) return { label:'Atenção', color:'#c98a1e' };
+  return { label:'Crítico', color:'#d64545' };
+}
+
+function mockBenchmark(companyId) {
+  const r = seed(companyId + 'bench');
+  const dims = ['Tráfego estimado','Keywords em comum','Presença em IA','Autoridade de domínio'];
+  const own = dims.map(() => Math.round(40 + r()*50));
+  const competitors = [
+    { name:'Concorrente A', values: dims.map(() => Math.round(20 + r()*70)), color:'#c98a1e' },
+    { name:'Concorrente B', values: dims.map(() => Math.round(20 + r()*70)), color:'#7B3FA0' },
+  ];
+  return { dims, own, competitors };
+}
+
+function mockComparativoGrupo() {
+  return COMPANIES.map(c => {
+    const g = mockGA4(c.id);
+    const r = seed(c.id + 'conv');
+    return {
+      id: c.id, name: c.name, dot: c.dot,
+      sessions: g.sessions,
+      engagementRate: Math.round((45 + r()*35) * 10) / 10,
+      conversionRate: Math.round((1 + r()*6) * 100) / 100,
+      deltaPct: g.deltaPct,
+    };
+  }).sort((a,b) => b.sessions - a.sessions);
+}
+
 /* ════════════════════════════════════════════════════
    LOGIN
    ════════════════════════════════════════════════════ */
@@ -381,10 +475,10 @@ function renderContent() {
   if (activeTab === 'rd') { el.innerHTML = stubPanel('RD Station', 'Leads, MQLs e taxa de conversão — em construção nesta interface.', []); return; }
 
   const renderers = {
-    '01': renderResumo, '02': renderAcessos, '03': renderStub03,
-    '04': renderStub04, '06': renderStub06, '07': renderSEO,
-    '08': renderGEO, '09': renderStub09, '10': renderStub10,
-    '11': renderStub11, '12': renderAlertas,
+    '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
+    '04': renderConteudo, '06': renderOrigem, '07': renderSEO,
+    '08': renderGEO, '09': renderPerformance, '10': renderBenchmark,
+    '11': renderComparativoGrupo, '12': renderAlertas,
   };
   (renderers[activeSection] || (() => {}))();
 }
@@ -580,54 +674,225 @@ function renderAlertas() {
   `;
 }
 
-/* ── Stubs — estrutura pronta, aguardando dados ── */
-function renderStub03() {
+/* ── 03 · Engajamento e comportamento ── */
+function renderEngajamento() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '03 · Engajamento e comportamento',
-    'Depende só de mais uma métrica do GA4.',
-    ['Taxa de rejeição (já disponível na aba Acessos, mover pra cá na próxima passada)']
-  );
+  const d = mockEngajamento(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-2" style="margin-bottom:16px">
+      ${kpiCard('Taxa de rejeição', d.bounceRate + '%', d.deltaPct)}
+      ${kpiCard('Tempo médio de engajamento', d.avgEngagementTime + 's', -3.2)}
+    </div>
+    <div class="card">
+      <div class="section-title">Evolução da taxa de rejeição</div>
+      <div class="section-sub">% de sessões sem interação, por mês</div>
+      <div class="chart-box"><canvas id="chBounce"></canvas></div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chBounce'), {
+    type:'line',
+    data:{ labels:d.months, datasets:[{ data:d.bounceSeries, borderColor:'#d64545', backgroundColor:'rgba(214,69,69,.08)', fill:true, tension:.35, pointRadius:0 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
 }
-function renderStub04() {
+
+/* ── 04 · Conteúdo mais acessado ── */
+let contentSort = 'pageviews';
+function renderConteudo() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '04 · Conteúdo mais acessado',
-    'Fonte: tabela ga4_pages.',
-    ['Ranking de páginas mais acessadas', 'Ranking de páginas com maior crescimento', 'Ranking por tempo de permanência', 'Conteúdos antigos com tráfego relevante']
-  );
+  const pages = mockConteudo(activeCompany);
+  const sorters = {
+    pageviews: (a,b) => b.pageviews - a.pageviews,
+    growthPct: (a,b) => b.growthPct - a.growthPct,
+    avgTime:   (a,b) => b.avgTime - a.avgTime,
+    old:       (a,b) => (b.isOld - a.isOld) || (b.pageviews - a.pageviews),
+  };
+  const labels = { pageviews:'Mais acessadas', growthPct:'Maior crescimento', avgTime:'Maior tempo', old:'Conteúdo antigo relevante' };
+  const sorted = [...pages].sort(sorters[contentSort]);
+  const top5 = [...pages].sort(sorters.pageviews).slice(0,5);
+
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Top 5 páginas por visualizações</div>
+      <div class="chart-box"><canvas id="chPagesBar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Ranking de páginas</div>
+      <div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap">
+        ${Object.keys(labels).map(k => `<button class="stab${k===contentSort?' active':''}" data-sort="${k}" style="border:1px solid var(--line)">${labels[k]}</button>`).join('')}
+      </div>
+      <table class="rank">
+        <thead><tr><th>Página</th><th>Visualizações</th><th>Crescimento</th><th>Tempo médio</th></tr></thead>
+        <tbody>
+          ${sorted.map(p => `<tr>
+            <td>${p.path}${p.isOld ? ' <span class="stub-tag" style="margin:0">antigo</span>' : ''}</td>
+            <td>${p.pageviews.toLocaleString('pt-BR')}</td>
+            <td style="color:${p.growthPct>=0?'var(--up)':'var(--dn)'}">${p.growthPct>=0?'+':''}${p.growthPct}%</td>
+            <td>${p.avgTime}s</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.querySelectorAll('[data-sort]').forEach(btn => {
+    btn.onclick = () => { contentSort = btn.dataset.sort; renderConteudo(); };
+  });
+  chartInstances.push(new Chart(document.getElementById('chPagesBar'), {
+    type:'bar',
+    data:{ labels: top5.map(p=>p.path), datasets:[{ data: top5.map(p=>p.pageviews), backgroundColor:'#005caa' }]},
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ grid:{color:'#f3f4f6'} }, y:{ grid:{display:false} } } }
+  }));
 }
-function renderStub06() {
+
+/* ── 06 · Origem dos acessos ── */
+function renderOrigem() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '06 · Origem dos acessos',
-    'Fonte: tabela ga4_traffic_sources.',
-    ['Distribuição por canal (orgânico, direto, social, referência, pago, IA)', 'Detalhamento por rede social', 'Principais domínios de referência']
-  );
+  const d = mockOrigem(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-2" style="gap:16px">
+      <div class="card">
+        <div class="section-title">Distribuição por canal</div>
+        <div class="chart-box"><canvas id="chOrigemPie"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Principais domínios de referência</div>
+        <table class="rank">
+          <thead><tr><th>Domínio</th><th>Sessões</th></tr></thead>
+          <tbody>
+            ${d.domains.map(x => `<tr><td>${x.domain}</td><td>${x.sessions.toLocaleString('pt-BR')}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chOrigemPie'), {
+    type:'doughnut',
+    data:{ labels:d.dist.map(x=>x.label), datasets:[{ data:d.dist.map(x=>x.pct), backgroundColor:d.dist.map(x=>x.color) }]},
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}} }
+  }));
 }
-function renderStub09() {
+
+/* ── 09 · Performance técnica ── */
+function renderPerformance() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '09 · Performance técnica',
-    'Fonte: tabelas core_web_vitals e site_uptime.',
-    ['Core Web Vitals (LCP, CLS, INP)', 'Desempenho mobile vs. desktop', 'Uptime do site']
-  );
+  const d = mockPerformance(activeCompany);
+  const sLcp = vitalStatus('lcp', d.lcp), sCls = vitalStatus('cls', d.cls), sInp = vitalStatus('inp', d.inp);
+  const ringPct = { 'Bom':85, 'Atenção':55, 'Crítico':25 };
+  const gauge = (label, value, unit, status) => `
+    <div style="text-align:center">
+      <div class="gauge" style="margin:0 auto; background: conic-gradient(${status.color} ${ringPct[status.label]}%, #eceef0 0)">${value}${unit}</div>
+      <div class="kpi-label" style="margin-top:10px">${label}</div>
+      <div class="kpi-delta" style="color:${status.color}">${status.label}</div>
+    </div>`;
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Core Web Vitals</div>
+      <div class="section-sub">Médias do período</div>
+      <div class="grid grid-3">
+        ${gauge('LCP', d.lcp, 's', sLcp)}
+        ${gauge('CLS', d.cls, '', sCls)}
+        ${gauge('INP', d.inp, 'ms', sInp)}
+      </div>
+    </div>
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <div class="section-title">Mobile vs. desktop (LCP)</div>
+        <div class="chart-box"><canvas id="chMobDesk"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Uptime do site</div>
+        <div class="kpi-value">${d.uptime}%</div>
+        <div class="section-sub" style="margin-top:10px">no período analisado</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Páginas com erro</div>
+      <table class="rank">
+        <thead><tr><th>Página</th><th>Código</th><th>Ocorrências</th></tr></thead>
+        <tbody>
+          ${d.errors.map(e => `<tr><td>${e.path}</td><td>${e.code}</td><td>${e.hits}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chMobDesk'), {
+    type:'bar',
+    data:{ labels:['Mobile','Desktop'], datasets:[{ data:[d.mobileLcp, d.desktopLcp], backgroundColor:['#1DB3E8','#005caa'] }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
 }
-function renderStub10() {
+
+/* ── 10 · Benchmark de concorrentes ── */
+function renderBenchmark() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '10 · Benchmark de concorrentes',
-    'Fonte: tabela competitor_benchmark — dados estimados via SimilarWeb/SEMrush, sempre exibidos como estimativa.',
-    ['Estimativa de tráfego comparado', 'Comparativo de palavras-chave em comum', 'Comparativo de presença em IA (GEO)', 'Comparativo de autoridade de domínio']
-  );
+  const d = mockBenchmark(activeCompany);
+  const company = COMPANIES.find(c => c.id === activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <span class="stub-tag">Dado estimado (SimilarWeb / SEMrush)</span>
+      <div class="section-title">Comparativo com concorrentes</div>
+      <div class="chart-box" style="height:320px"><canvas id="chRadar"></canvas></div>
+    </div>
+    <div class="card">
+      <table class="rank">
+        <thead><tr><th>Dimensão</th><th>${company.name}</th>${d.competitors.map(c=>`<th>${c.name}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${d.dims.map((dim,i) => `<tr>
+            <td>${dim}</td><td>${d.own[i]}</td>
+            ${d.competitors.map(c=>`<td>${c.values[i]}</td>`).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chRadar'), {
+    type:'radar',
+    data:{
+      labels: d.dims,
+      datasets:[
+        { label: company.name, data: d.own, borderColor:'#005caa', backgroundColor:'rgba(0,92,170,.12)' },
+        ...d.competitors.map(c => ({ label:c.name, data:c.values, borderColor:c.color, backgroundColor:'transparent' })),
+      ]
+    },
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, scales:{ r:{ grid:{color:'#f3f4f6'}, ticks:{display:false} } } }
+  }));
 }
-function renderStub11() {
+
+/* ── 11 · Comparativo entre sites do grupo ── */
+function renderComparativoGrupo() {
   destroyCharts();
-  document.getElementById('content').innerHTML = stubPanel(
-    '11 · Comparativo entre sites do grupo',
-    'Visão cruzando ga4_daily_metrics de todas as 6 empresas — melhor como uma aba própria fora do contexto de uma única empresa.',
-    ['Ranking de sites por acesso, engajamento e conversão', 'Comparativo entre projetos', 'Sites com maior evolução e maior queda no período']
-  );
+  const rows = mockComparativoGrupo();
+  const best = rows[0], worst = [...rows].sort((a,b)=>a.deltaPct-b.deltaPct)[0];
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-2" style="margin-bottom:16px">
+      ${kpiCard('Maior evolução', best.name, best.deltaPct)}
+      ${kpiCard('Maior queda', worst.name, worst.deltaPct)}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Sessões por site</div>
+      <div class="chart-box"><canvas id="chGroupBar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Ranking do grupo</div>
+      <table class="rank">
+        <thead><tr><th>Site</th><th>Sessões</th><th>Engajamento</th><th>Conversão</th><th>Variação</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${r.dot};margin-right:8px"></span>${r.name}</td>
+            <td>${r.sessions.toLocaleString('pt-BR')}</td>
+            <td>${r.engagementRate}%</td>
+            <td>${r.conversionRate}%</td>
+            <td style="color:${r.deltaPct>=0?'var(--up)':'var(--dn)'}">${r.deltaPct>=0?'+':''}${r.deltaPct}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chGroupBar'), {
+    type:'bar',
+    data:{ labels: rows.map(r=>r.name), datasets:[{ data: rows.map(r=>r.sessions), backgroundColor: rows.map(r=>r.dot) }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
 }
 </script>
 </body>
