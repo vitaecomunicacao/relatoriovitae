@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -18,12 +19,7 @@
 }
 html, body { font-family: var(--font); color: var(--ink); background: var(--bg); font-size: 16px; -webkit-font-smoothing: antialiased; }
 button, input, select { font-family: var(--font); }
-
-/* ── LOGIN ── */
-#view-login {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #fafbfd 0%, #f4f6f9 55%, #eef1f6 100%);
-}
+#view-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #fafbfd 0%, #f4f6f9 55%, #eef1f6 100%); }
 #view-login.hide { display: none; }
 .login-card { width: 100%; max-width: 380px; padding: 40px; }
 .login-mark { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 28px; }
@@ -32,120 +28,81 @@ button, input, select { font-family: var(--font); }
 .login-sub { font-size: 13.5px; color: var(--ink-2); margin-bottom: 28px; }
 .login-field { margin-bottom: 16px; }
 .login-field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; }
-.login-field input {
-  width: 100%; font-size: 14px; padding: 11px 13px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--wash);
-}
+.login-field input { width: 100%; font-size: 14px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); }
 .login-field input:focus { outline: 2px solid var(--navy); outline-offset: 1px; border-color: transparent; }
-.login-btn {
-  width: 100%; margin-top: 8px; padding: 12px; font-size: 14px; font-weight: 600;
-  color: #fff; background: var(--navy); border: none; border-radius: 8px; cursor: pointer;
-}
+.login-btn { width: 100%; margin-top: 8px; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: var(--navy); border: none; border-radius: 8px; cursor: pointer; }
 .login-btn:hover { opacity: .92; }
 .login-note { font-size: 11.5px; color: var(--ink-3); margin-top: 16px; line-height: 1.5; }
 .login-error { font-size: 12.5px; color: var(--dn); margin-top: 10px; display: none; }
-
-/* ── APP SHELL ── */
 #view-app { display: none; }
 #view-app.show { display: block; }
-
-.topbar {
-  height: 60px; display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; position: sticky; top: 0; z-index: 200;
-  background: rgba(255,255,255,.94); backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
-}
+.topbar { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; position: sticky; top: 0; z-index: 200; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .tb-mark { font-size: 13px; font-weight: 700; color: var(--navy); }
 .tb-mark span { color: var(--ink-3); font-weight: 500; }
 .tb-logout { font-size: 12.5px; color: var(--ink-3); background: none; border: none; cursor: pointer; }
 .tb-logout:hover { color: var(--ink); }
-
-.company-rail {
-  display: flex; gap: 8px; overflow-x: auto; padding: 14px 32px; border-bottom: 1px solid var(--line);
-  background: var(--wash);
-}
-.company-pill {
-  display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 20px;
-  background: #fff; border: 1px solid var(--line); font-size: 12.5px; font-weight: 500; color: var(--ink-2);
-  cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s;
-}
+.company-rail { display: flex; gap: 8px; overflow-x: auto; padding: 14px 32px; border-bottom: 1px solid var(--line); background: var(--wash); }
+.company-pill { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 20px; background: #fff; border: 1px solid var(--line); font-size: 12.5px; font-weight: 500; color: var(--ink-2); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
 .company-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .company-pill.active { border-color: var(--ink); color: var(--ink); font-weight: 600; }
 .company-pill .rd-badge { font-size: 9.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
-
 .tabs-wrap { position: sticky; top: 60px; z-index: 190; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .tabs { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 24px; overflow-x: auto; }
 .tab { padding: 14px 0 12px; font-size: 13.5px; font-weight: 500; color: var(--ink-3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
 .tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--navy); }
-
 .subnav-wrap { position: sticky; top: 105px; z-index: 180; background: var(--wash); border-bottom: 1px solid var(--line); }
 .subnav { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 8px; overflow-x: auto; }
 .stab { padding: 10px 12px; font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: none; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .stab.active { color: var(--navy); background: #fff; }
-
 .content { max-width: 1128px; margin: 0 auto; padding: 32px; }
-
-/* ── CARDS / GRID ── */
 .grid { display: grid; gap: 16px; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-2 { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 900px) { .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); } }
-
 .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
 .kpi-label { font-size: 12px; color: var(--ink-3); font-weight: 500; margin-bottom: 8px; }
 .kpi-value { font-size: 26px; font-weight: 750; letter-spacing: -.01em; }
 .kpi-delta { font-size: 12px; font-weight: 600; margin-top: 6px; }
 .kpi-delta.up { color: var(--up); } .kpi-delta.dn { color: var(--dn); }
-
 .section-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
 .section-sub { font-size: 12.5px; color: var(--ink-3); margin-bottom: 16px; }
-
 .status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 20px; }
 .status-badge.bom { background: #eaf6f0; color: var(--up); }
 .status-badge.atencao { background: #fdf3e3; color: var(--amb); }
 .status-badge.critico { background: #fbeaea; color: var(--dn); }
-
 .summary-text { font-size: 14px; line-height: 1.7; color: var(--ink-2); }
-
 table.rank { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.rank th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line); }
 table.rank td { padding: 10px 12px; border-bottom: 1px solid var(--line-2); }
 table.rank tr:last-child td { border-bottom: none; }
-
 .heatmap { display: grid; grid-template-columns: 40px repeat(24, 1fr); gap: 2px; }
 .heatmap .hcell { aspect-ratio: 1; border-radius: 2px; }
 .heatmap .hlabel { font-size: 10px; color: var(--ink-3); display: flex; align-items: center; }
-
 .gauge-wrap { display: flex; align-items: center; gap: 16px; }
 .gauge { width: 88px; height: 88px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; }
-
 .geo-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
 .geo-row:last-child { border-bottom: none; }
 .geo-name { width: 90px; font-size: 13px; font-weight: 500; }
 .geo-bar-track { flex: 1; height: 8px; background: var(--line-2); border-radius: 4px; overflow: hidden; }
 .geo-bar-fill { height: 100%; border-radius: 4px; }
 .geo-pct { width: 44px; text-align: right; font-size: 12.5px; font-weight: 600; }
-
 .stub-card { border: 1px dashed var(--line); border-radius: 12px; padding: 24px; background: var(--wash); }
 .stub-card .section-title { color: var(--ink-2); }
 .stub-list { font-size: 13px; color: var(--ink-2); line-height: 1.9; margin-top: 10px; }
 .stub-tag { display: inline-block; font-size: 10.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; margin-bottom: 10px; }
-
 .alert-feed { display: flex; flex-direction: column; gap: 10px; }
 .alert-card { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); }
 .alert-sev { width: 8px; border-radius: 4px; flex-shrink: 0; }
 .alert-sev.critico { background: var(--dn); } .alert-sev.atencao { background: var(--amb); } .alert-sev.info { background: var(--ink-3); }
 .alert-title { font-size: 13.5px; font-weight: 600; }
 .alert-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
-
 .chart-box { height: 260px; }
 </style>
 </head>
 <body>
 
-<!-- ═══════════ LOGIN ═══════════ -->
 <div id="view-login">
   <div class="login-card">
     <div class="login-mark">VITAE BRASIL <span>· analytics</span></div>
@@ -171,7 +128,6 @@ table.rank tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
-<!-- ═══════════ APP ═══════════ -->
 <div id="view-app">
   <div class="topbar">
     <div class="topbar-left">
@@ -179,23 +135,17 @@ table.rank tr:last-child td { border-bottom: none; }
     </div>
     <button class="tb-logout" id="logoutBtn">Sair</button>
   </div>
-
   <div class="company-rail" id="companyRail"></div>
-
-  <div class="tabs-wrap">
-    <div class="tabs" id="mainTabs"></div>
-  </div>
-  <div class="subnav-wrap" id="subnavWrap">
-    <div class="subnav" id="subnav"></div>
-  </div>
-
+  <div class="tabs-wrap"><div class="tabs" id="mainTabs"></div></div>
+  <div class="subnav-wrap" id="subnavWrap"><div class="subnav" id="subnav"></div></div>
   <div class="content" id="content"></div>
 </div>
 
 <script>
-/* ════════════════════════════════════════════════════
-   DADOS BASE
-   ════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://jozcrsrygjwujigeyeds.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvemNyc3J5Z2p3dWppZ2V5ZWRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMTgyMzksImV4cCI6MjEwMDg5NDIzOX0.cUBnQZ2L5x8ZsPgicWQsyvquef9V5T3K5IViO1bis4A';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const COMPANIES = [
   { id:'faz',      name:'Faz Educação',     dot:'#1DB3E8', rd:true  },
   { id:'planneta', name:'Planneta Educação',dot:'#f29106', rd:false },
@@ -229,10 +179,6 @@ let activeCompany = 'faz';
 let activeTab = 'analytics';
 let activeSection = '01';
 
-/* ════════════════════════════════════════════════════
-   MOCK DATA — mesmo formato das tabelas do Supabase.
-   Trocar por fetch() ao Postgres quando o backend estiver pronto.
-   ════════════════════════════════════════════════════ */
 function seed(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -385,9 +331,6 @@ function mockComparativoGrupo() {
   }).sort((a,b) => b.sessions - a.sessions);
 }
 
-/* ════════════════════════════════════════════════════
-   LOGIN
-   ════════════════════════════════════════════════════ */
 document.getElementById('loginForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
@@ -414,9 +357,6 @@ if (sessionStorage.getItem('vitae_logged_in') === '1') {
   boot();
 }
 
-/* ════════════════════════════════════════════════════
-   SHELL: empresas, tabs, subnav
-   ════════════════════════════════════════════════════ */
 function boot() {
   renderCompanyRail();
   renderMainTabs();
@@ -465,14 +405,11 @@ function renderSubnav() {
   });
 }
 
-/* ════════════════════════════════════════════════════
-   CONTEÚDO
-   ════════════════════════════════════════════════════ */
 function renderContent() {
   const el = document.getElementById('content');
   el.innerHTML = '';
   if (activeTab === 'social') { el.innerHTML = stubPanel('Redes sociais', 'Alimentado pelo Reportei — em construção nesta interface.', []); return; }
-  if (activeTab === 'rd') { el.innerHTML = stubPanel('RD Station', 'Leads, MQLs e taxa de conversão — em construção nesta interface.', []); return; }
+  if (activeTab === 'rd') { renderRD(); return; }
 
   const renderers = {
     '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
@@ -495,17 +432,17 @@ function stubPanel(title, sub, fields) {
 function kpiCard(label, value, delta) {
   const dir = delta >= 0 ? 'up' : 'dn';
   const sign = delta >= 0 ? '+' : '';
+  const deltaLine = (delta === 0) ? '' : `<div class="kpi-delta ${dir}">${sign}${delta}% vs. período anterior</div>`;
   return `<div class="card">
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${value}</div>
-    <div class="kpi-delta ${dir}">${sign}${delta}% vs. período anterior</div>
+    ${deltaLine}
   </div>`;
 }
 
 let chartInstances = [];
 function destroyCharts() { chartInstances.forEach(c => c.destroy()); chartInstances = []; }
 
-/* ── 01 · Resumo geral ── */
 function renderResumo() {
   destroyCharts();
   const d = mockGA4(activeCompany);
@@ -540,7 +477,6 @@ function renderResumo() {
   }));
 }
 
-/* ── 02 · Acessos ao site ── */
 function renderAcessos() {
   destroyCharts();
   const d = mockGA4(activeCompany);
@@ -588,93 +524,6 @@ function renderAcessos() {
   document.getElementById('heatmapWrap').innerHTML = grid;
 }
 
-/* ── 07 · SEO ── */
-function renderSEO() {
-  destroyCharts();
-  const d = mockGSC(activeCompany);
-  document.getElementById('content').innerHTML = `
-    <div class="grid grid-4" style="margin-bottom:16px">
-      ${kpiCard('Impressões', d.impressions.toLocaleString('pt-BR'), 6.4)}
-      ${kpiCard('Cliques', d.clicks.toLocaleString('pt-BR'), 4.1)}
-      ${kpiCard('CTR médio', d.ctr + '%', 0.8)}
-      ${kpiCard('Posição média', d.position, -1.4)}
-    </div>
-    <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px">
-      <div class="card">
-        <div class="section-title">Principais palavras-chave</div>
-        <table class="rank">
-          <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
-          <tbody>
-            ${d.keywords.map(k => `<tr>
-              <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
-              <td>${k.position}</td>
-              <td style="color:${k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta>=0?'+':''}${k.delta}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <div class="card">
-        <div class="section-title">Páginas indexadas</div>
-        <div class="gauge-wrap" style="margin-top:12px">
-          <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
-          <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/* ── 08 · GEO ── */
-function renderGEO() {
-  destroyCharts();
-  const d = mockGEO(activeCompany);
-  document.getElementById('content').innerHTML = `
-    <div class="grid grid-2" style="gap:16px">
-      <div class="card">
-        <div class="section-title">Taxa de citação por plataforma de IA</div>
-        <div class="section-sub">% das consultas relevantes em que a marca aparece citada</div>
-        ${d.map(p => `<div class="geo-row">
-          <div class="geo-name">${p.platform}</div>
-          <div class="geo-bar-track"><div class="geo-bar-fill" style="width:${p.citationRate}%; background:${p.color}"></div></div>
-          <div class="geo-pct">${p.citationRate}%</div>
-        </div>`).join('')}
-      </div>
-      <div class="card">
-        <div class="section-title">Tráfego de referência por IA</div>
-        <div class="chart-box"><canvas id="chGeoBar"></canvas></div>
-      </div>
-    </div>
-  `;
-  chartInstances.push(new Chart(document.getElementById('chGeoBar'), {
-    type:'bar',
-    data:{ labels:d.map(p=>p.platform), datasets:[{ data:d.map(p=>p.referralSessions), backgroundColor:d.map(p=>p.color) }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
-  }));
-}
-
-/* ── 12 · Alertas ── */
-function renderAlertas() {
-  destroyCharts();
-  const r = seed(activeCompany + 'alerts');
-  const templates = [
-    { sev:'critico', title:'Queda abrupta de tráfego', desc:'Sessões caíram mais de 30% na última semana em relação à média do mês.' },
-    { sev:'atencao',  title:'Página lenta com muito tráfego', desc:'A página de destino principal está acima do limite aceitável de LCP.' },
-    { sev:'atencao',  title:'Palavra-chave próxima da 1ª página', desc:'Uma palavra-chave estratégica está na posição 11, a um passo da primeira página.' },
-    { sev:'info',      title:'Conteúdo com bom desempenho em IA', desc:'Um artigo tem mais referências vindas de IA generativa do que de busca tradicional.' },
-  ];
-  const chosen = templates.filter(() => r() > 0.3);
-  document.getElementById('content').innerHTML = `
-    <div class="alert-feed">
-      ${(chosen.length ? chosen : templates.slice(0,1)).map(a => `
-        <div class="alert-card">
-          <div class="alert-sev ${a.sev}"></div>
-          <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
-        </div>`).join('')}
-    </div>
-  `;
-}
-
-/* ── 03 · Engajamento e comportamento ── */
 function renderEngajamento() {
   destroyCharts();
   const d = mockEngajamento(activeCompany);
@@ -696,7 +545,6 @@ function renderEngajamento() {
   }));
 }
 
-/* ── 04 · Conteúdo mais acessado ── */
 let contentSort = 'pageviews';
 function renderConteudo() {
   destroyCharts();
@@ -744,7 +592,6 @@ function renderConteudo() {
   }));
 }
 
-/* ── 06 · Origem dos acessos ── */
 function renderOrigem() {
   destroyCharts();
   const d = mockOrigem(activeCompany);
@@ -772,7 +619,68 @@ function renderOrigem() {
   }));
 }
 
-/* ── 09 · Performance técnica ── */
+function renderSEO() {
+  destroyCharts();
+  const d = mockGSC(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${kpiCard('Impressões', d.impressions.toLocaleString('pt-BR'), 6.4)}
+      ${kpiCard('Cliques', d.clicks.toLocaleString('pt-BR'), 4.1)}
+      ${kpiCard('CTR médio', d.ctr + '%', 0.8)}
+      ${kpiCard('Posição média', d.position, -1.4)}
+    </div>
+    <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px">
+      <div class="card">
+        <div class="section-title">Principais palavras-chave</div>
+        <table class="rank">
+          <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
+          <tbody>
+            ${d.keywords.map(k => `<tr>
+              <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
+              <td>${k.position}</td>
+              <td style="color:${k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta>=0?'+':''}${k.delta}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="section-title">Páginas indexadas</div>
+        <div class="gauge-wrap" style="margin-top:12px">
+          <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
+          <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGEO() {
+  destroyCharts();
+  const d = mockGEO(activeCompany);
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-2" style="gap:16px">
+      <div class="card">
+        <div class="section-title">Taxa de citação por plataforma de IA</div>
+        <div class="section-sub">% das consultas relevantes em que a marca aparece citada</div>
+        ${d.map(p => `<div class="geo-row">
+          <div class="geo-name">${p.platform}</div>
+          <div class="geo-bar-track"><div class="geo-bar-fill" style="width:${p.citationRate}%; background:${p.color}"></div></div>
+          <div class="geo-pct">${p.citationRate}%</div>
+        </div>`).join('')}
+      </div>
+      <div class="card">
+        <div class="section-title">Tráfego de referência por IA</div>
+        <div class="chart-box"><canvas id="chGeoBar"></canvas></div>
+      </div>
+    </div>
+  `;
+  chartInstances.push(new Chart(document.getElementById('chGeoBar'), {
+    type:'bar',
+    data:{ labels:d.map(p=>p.platform), datasets:[{ data:d.map(p=>p.referralSessions), backgroundColor:d.map(p=>p.color) }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
+}
+
 function renderPerformance() {
   destroyCharts();
   const d = mockPerformance(activeCompany);
@@ -822,7 +730,6 @@ function renderPerformance() {
   }));
 }
 
-/* ── 10 · Benchmark de concorrentes ── */
 function renderBenchmark() {
   destroyCharts();
   const d = mockBenchmark(activeCompany);
@@ -858,7 +765,6 @@ function renderBenchmark() {
   }));
 }
 
-/* ── 11 · Comparativo entre sites do grupo ── */
 function renderComparativoGrupo() {
   destroyCharts();
   const rows = mockComparativoGrupo();
@@ -892,6 +798,126 @@ function renderComparativoGrupo() {
     type:'bar',
     data:{ labels: rows.map(r=>r.name), datasets:[{ data: rows.map(r=>r.sessions), backgroundColor: rows.map(r=>r.dot) }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+  }));
+}
+
+function renderAlertas() {
+  destroyCharts();
+  const r = seed(activeCompany + 'alerts');
+  const templates = [
+    { sev:'critico', title:'Queda abrupta de tráfego', desc:'Sessões caíram mais de 30% na última semana em relação à média do mês.' },
+    { sev:'atencao',  title:'Página lenta com muito tráfego', desc:'A página de destino principal está acima do limite aceitável de LCP.' },
+    { sev:'atencao',  title:'Palavra-chave próxima da 1ª página', desc:'Uma palavra-chave estratégica está na posição 11, a um passo da primeira página.' },
+    { sev:'info',      title:'Conteúdo com bom desempenho em IA', desc:'Um artigo tem mais referências vindas de IA generativa do que de busca tradicional.' },
+  ];
+  const chosen = templates.filter(() => r() > 0.3);
+  document.getElementById('content').innerHTML = `
+    <div class="alert-feed">
+      ${(chosen.length ? chosen : templates.slice(0,1)).map(a => `
+        <div class="alert-card">
+          <div class="alert-sev ${a.sev}"></div>
+          <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+let rdGranularity = 'day';
+
+function isoMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+async function renderRD() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = `<div class="card">Carregando dados do RD Station…</div>`;
+
+  const [leadsResp, eventsResp] = await Promise.all([
+    sb.from('rd_leads').select('date, leads_count, mql_count')
+      .eq('company_id', activeCompany).order('date', { ascending: true }),
+    sb.from('rd_events').select('conversion_identifier, received_at')
+      .eq('company_id', activeCompany).eq('event_type', 'WEBHOOK.CONVERTED')
+      .not('conversion_identifier', 'is', null),
+  ]);
+
+  if (leadsResp.error || eventsResp.error) {
+    document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados: ${(leadsResp.error || eventsResp.error).message}</div>`;
+    return;
+  }
+
+  const leads = leadsResp.data || [];
+  const events = eventsResp.data || [];
+
+  const totalLeads = leads.reduce((sum, r) => sum + r.leads_count, 0);
+  const avgPerDay = leads.length ? Math.round((totalLeads / leads.length) * 10) / 10 : 0;
+  const bestDay = leads.length ? leads.reduce((a, b) => b.leads_count > a.leads_count ? b : a) : null;
+
+  const counts = {};
+  events.forEach(e => {
+    const key = e.conversion_identifier || '(sem identificador)';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const ranking = Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+  const rankingTotal = ranking.reduce((s, r) => s + r.count, 0);
+
+  document.getElementById('content').innerHTML = `
+    <div class="grid grid-3" style="margin-bottom:16px">
+      ${kpiCard('Total de leads no período', totalLeads, 0)}
+      ${kpiCard('Média por dia', avgPerDay, 0)}
+      ${kpiCard('Melhor dia', bestDay ? `${bestDay.leads_count} (${bestDay.date})` : '—', 0)}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px">
+        <div>
+          <div class="section-title">Leads ao longo do tempo</div>
+          <div class="section-sub" style="margin:0">Conversões registradas via webhook</div>
+        </div>
+        <div style="display:flex; gap:6px">
+          ${['day','week','month'].map(g => `<button class="stab${g===rdGranularity?' active':''}" data-gran="${g}" style="border:1px solid var(--line)">${{day:'Dia',week:'Semana',month:'Mês'}[g]}</button>`).join('')}
+        </div>
+      </div>
+      <div class="chart-box" style="margin-top:14px"><canvas id="chRdLeads"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Ações que mais converteram</div>
+      <div class="section-sub">Ranking por formulário / landing page / material</div>
+      <table class="rank">
+        <thead><tr><th>Ação</th><th>Leads</th><th>% do total</th></tr></thead>
+        <tbody>
+          ${ranking.length ? ranking.map(r => `<tr>
+            <td>${r.name}</td><td>${r.count}</td>
+            <td>${rankingTotal ? Math.round(r.count / rankingTotal * 1000) / 10 : 0}%</td>
+          </tr>`).join('') : '<tr><td colspan="3">Nenhuma conversão registrada ainda.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.querySelectorAll('[data-gran]').forEach(btn => {
+    btn.onclick = () => { rdGranularity = btn.dataset.gran; renderRD(); };
+  });
+
+  const buckets = {};
+  leads.forEach(r => {
+    let key;
+    if (rdGranularity === 'day') key = r.date;
+    else if (rdGranularity === 'week') key = isoMonday(r.date);
+    else key = r.date.slice(0, 7);
+    buckets[key] = (buckets[key] || 0) + r.leads_count;
+  });
+  const labels = Object.keys(buckets).sort();
+  const values = labels.map(k => buckets[k]);
+
+  chartInstances.push(new Chart(document.getElementById('chRdLeads'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: '#005caa' }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } }
   }));
 }
 </script>
