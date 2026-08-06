@@ -178,6 +178,7 @@ const ANALYTICS_SECTIONS = [
 let activeCompany = 'faz';
 let activeTab = 'analytics';
 let activeSection = '01';
+let chartInstances = [];
 
 function seed(str) {
   let h = 0;
@@ -440,7 +441,6 @@ function kpiCard(label, value, delta) {
   </div>`;
 }
 
-let chartInstances = [];
 function destroyCharts() { chartInstances.forEach(c => c.destroy()); chartInstances = []; }
 
 function renderResumo() {
