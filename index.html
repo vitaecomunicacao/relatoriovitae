@@ -99,6 +99,16 @@ table.rank tr:last-child td { border-bottom: none; }
 .alert-title { font-size: 13.5px; font-weight: 600; }
 .alert-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
 .chart-box { height: 260px; }
+.periodbar-wrap { display: none; background: #fff; border-bottom: 1px solid var(--line); }
+.periodbar-wrap.show { display: block; }
+.periodbar { max-width: 1128px; margin: 0 auto; padding: 12px 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pb-presets { display: flex; gap: 6px; }
+.pb-btn { padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--wash); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.pb-btn.active { color: #fff; background: var(--navy); border-color: var(--navy); }
+.pb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.pb-date { font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--wash); color: var(--ink); }
+.pb-apply { padding: 7px 14px; font-size: 12px; font-weight: 600; color: #fff; background: var(--ink); border: none; border-radius: 7px; cursor: pointer; }
+.pb-gran { display: flex; gap: 4px; margin-left: auto; }
 .social-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
 .social-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .social-card-name { font-size: 14px; font-weight: 700; }
@@ -177,6 +187,7 @@ table.rank tr:last-child td { border-bottom: none; }
   <div class="company-rail" id="companyRail"></div>
   <div class="tabs-wrap"><div class="tabs" id="mainTabs"></div></div>
   <div class="subnav-wrap" id="subnavWrap"><div class="subnav" id="subnav"></div></div>
+  <div class="periodbar-wrap" id="periodBarWrap"><div class="periodbar" id="periodBar"></div></div>
   <div class="content" id="content"></div>
 </div>
 
@@ -217,6 +228,87 @@ const ANALYTICS_SECTIONS = [
 let activeCompany = 'faz';
 let activeTab = 'analytics';
 let activeSection = '01';
+
+// ── Filtro de período (aplica às seções alimentadas por GA4) ──
+let periodPreset = '30d';   // '7d' | '30d' | 'thisMonth' | 'lastMonth' | 'custom'
+let periodStart = null;     // 'YYYY-MM-DD' quando preset='custom'
+let periodEnd = null;
+let periodGranularity = 'day'; // 'day' | 'week' | 'month'
+
+function computePeriodRange() {
+  const today = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  if (periodPreset === 'custom' && periodStart && periodEnd) {
+    return { start: periodStart, end: periodEnd };
+  }
+  if (periodPreset === 'thisMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { start: fmt(start), end: fmt(today) };
+  }
+  if (periodPreset === 'lastMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const end = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { start: fmt(start), end: fmt(end) };
+  }
+  const days = periodPreset === '7d' ? 7 : 30;
+  const start = new Date(today);
+  start.setDate(start.getDate() - days);
+  return { start: fmt(start), end: fmt(today) };
+}
+
+function renderPeriodBar() {
+  const wrap = document.getElementById('periodBarWrap');
+  if (activeTab !== 'analytics') { wrap.classList.remove('show'); return; }
+  wrap.classList.add('show');
+
+  const presets = [
+    { id: '7d', label: '7 dias' },
+    { id: '30d', label: '30 dias' },
+    { id: 'thisMonth', label: 'Este mês' },
+    { id: 'lastMonth', label: 'Mês passado' },
+  ];
+
+  document.getElementById('periodBar').innerHTML = `
+    <div class="pb-presets">
+      ${presets.map(p => `<button class="pb-btn${periodPreset === p.id ? ' active' : ''}" data-preset="${p.id}">${p.label}</button>`).join('')}
+    </div>
+    <div class="pb-sep"></div>
+    <input type="date" class="pb-date" id="pbStart" value="${periodStart || ''}">
+    <span style="color:var(--ink-3); font-size:12px">até</span>
+    <input type="date" class="pb-date" id="pbEnd" value="${periodEnd || ''}">
+    <button class="pb-apply" id="pbApply">Aplicar</button>
+    <div class="pb-gran">
+      ${['day','week','month'].map(g => `<button class="pb-btn${periodGranularity===g?' active':''}" data-gran="${g}">${{day:'Dia',week:'Semana',month:'Mês'}[g]}</button>`).join('')}
+    </div>
+  `;
+
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.onclick = () => { periodPreset = btn.dataset.preset; periodStart = null; periodEnd = null; renderPeriodBar(); renderContent(); };
+  });
+  document.querySelectorAll('.pb-gran [data-gran]').forEach(btn => {
+    btn.onclick = () => { periodGranularity = btn.dataset.gran; renderPeriodBar(); renderContent(); };
+  });
+  document.getElementById('pbApply').onclick = () => {
+    const s = document.getElementById('pbStart').value;
+    const e = document.getElementById('pbEnd').value;
+    if (!s || !e) return;
+    periodPreset = 'custom'; periodStart = s; periodEnd = e;
+    renderPeriodBar(); renderContent();
+  };
+}
+
+function bucketByGranularity(rows, dateKey, valueKey) {
+  const buckets = {};
+  rows.forEach(r => {
+    let key;
+    if (periodGranularity === 'day') key = r[dateKey];
+    else if (periodGranularity === 'week') key = isoMonday(r[dateKey]);
+    else key = r[dateKey].slice(0, 7);
+    buckets[key] = (buckets[key] || 0) + r[valueKey];
+  });
+  const labels = Object.keys(buckets).sort();
+  return { labels, values: labels.map(k => buckets[k]) };
+}
 let chartInstances = [];
 
 function seed(str) {
@@ -229,10 +321,13 @@ function seed(str) {
 const GA4_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae']);
 
 async function fetchGA4Real(companyId) {
+  const { start, end } = computePeriodRange();
+
   const { data, error } = await sb
     .from('ga4_daily_metrics')
     .select('date, users, new_users, sessions, pageviews, bounce_rate, avg_engagement_time_s')
     .eq('company_id', companyId)
+    .gte('date', start).lte('date', end)
     .order('date', { ascending: true });
 
   if (error || !data || !data.length) return null;
@@ -240,7 +335,8 @@ async function fetchGA4Real(companyId) {
   const { data: deviceRows } = await sb
     .from('ga4_devices')
     .select('device_category, sessions')
-    .eq('company_id', companyId);
+    .eq('company_id', companyId)
+    .gte('date', start).lte('date', end);
 
   const deviceTotals = {};
   (deviceRows || []).forEach(r => { deviceTotals[r.device_category] = (deviceTotals[r.device_category] || 0) + r.sessions; });
@@ -262,11 +358,21 @@ async function fetchGA4Real(companyId) {
   const secondHalf = data.slice(half).reduce((s, r) => s + r.users, 0);
   const deltaPct = firstHalf ? Math.round(((secondHalf - firstHalf) / firstHalf) * 1000) / 10 : 0;
 
+  const usersBucketed = bucketByGranularity(data, 'date', 'users');
+  const sessionsBucketed = bucketByGranularity(data, 'date', 'sessions');
+  const labelFmt = (key) => {
+    if (periodGranularity === 'month') {
+      const [y, m] = key.split('-');
+      return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+    }
+    return new Date(key + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
   return {
     users, newUsers, sessions, pageviews, bounceRate, deltaPct,
-    months: data.map(r => new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
-    usersSeries: data.map(r => r.users),
-    sessionsSeries: data.map(r => r.sessions),
+    months: usersBucketed.labels.map(labelFmt),
+    usersSeries: usersBucketed.values,
+    sessionsSeries: sessionsBucketed.values,
     devices: devices.length ? devices : [{ label: 'Sem dados', value: 100 }],
   };
 }
@@ -447,6 +553,7 @@ function boot() {
   renderCompanyRail();
   renderMainTabs();
   renderSubnav();
+  renderPeriodBar();
   renderContent();
 }
 
@@ -471,7 +578,7 @@ function renderMainTabs() {
     const btn = document.createElement('button');
     btn.className = 'tab' + (t.id === activeTab ? ' active' : '');
     btn.textContent = t.label;
-    btn.onclick = () => { activeTab = t.id; renderMainTabs(); renderSubnav(); renderContent(); };
+    btn.onclick = () => { activeTab = t.id; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
     wrap.appendChild(btn);
   });
 }
