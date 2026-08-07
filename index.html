@@ -99,6 +99,45 @@ table.rank tr:last-child td { border-bottom: none; }
 .alert-title { font-size: 13.5px; font-weight: 600; }
 .alert-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
 .chart-box { height: 260px; }
+.social-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.social-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.social-card-name { font-size: 14px; font-weight: 700; }
+.social-stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.social-stat-row:last-child { border-bottom: none; }
+.social-stat-row .v { font-weight: 700; }
+.social-stat-row .v.muted { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+
+/* ── Estilo editorial (posts / KPIs) — igual ao relatório de referência ── */
+.social-block { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); }
+.social-block:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.cap {
+  font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 22px;
+}
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 32px; margin-bottom: 40px; }
+.kpi { padding: 4px 0 4px 28px; border-left: 1px solid var(--line); min-width: 0; }
+.kpi:first-child { padding-left: 0; border-left: none; }
+.kpi .v { font-size: 36px; font-weight: 650; letter-spacing: -.03em; line-height: 1.05; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; line-height: 1.4; }
+.kpi .l.muted { color: var(--ink-3); }
+.posts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 48px; }
+.post { padding-top: 18px; border-top: 2px solid var(--ink); min-width: 0; }
+.ptag { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--ink); }
+.pname { font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; line-height: 1.45; margin: 10px 0 16px; min-height: calc(1.45em * 3); }
+.pstats { display: flex; flex-direction: column; }
+.pstat { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); padding: 6px 0; border-bottom: 1px solid var(--line-2); }
+.pstat b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pstat:last-child { border-bottom: none; }
+.pmeta { font-size: 11.5px; color: var(--ink-3); margin-top: 14px; }
+.post-link { font-size: 12px; font-weight: 600; color: var(--navy); text-decoration: none; }
+.post-link:hover { text-decoration: underline; }
+.social-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.social-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.social-card-name { font-size: 14px; font-weight: 700; }
+.social-stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.social-stat-row:last-child { border-bottom: none; }
+.social-stat-row .v { font-weight: 700; }
+.social-stat-row .v.muted { color: var(--ink-3); font-weight: 500; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -409,7 +448,7 @@ function renderSubnav() {
 function renderContent() {
   const el = document.getElementById('content');
   el.innerHTML = '';
-  if (activeTab === 'social') { el.innerHTML = stubPanel('Redes sociais', 'Alimentado pelo Reportei — em construção nesta interface.', []); return; }
+  if (activeTab === 'social') { renderSocial(); return; }
   if (activeTab === 'rd') { renderRD(); return; }
 
   const renderers = {
@@ -428,6 +467,11 @@ function stubPanel(title, sub, fields) {
     <div class="section-sub">${sub}</div>
     ${fields.length ? `<ul class="stub-list">${fields.map(f=>`<li>${f}</li>`).join('')}</ul>` : ''}
   </div>`;
+}
+
+function truncate(text, max = 60) {
+  if (!text) return '<span style="color:var(--ink-3)">sem legenda</span>';
+  return text.length > max ? text.slice(0, max) + '…' : text;
 }
 
 function kpiCard(label, value, delta) {
@@ -820,6 +864,176 @@ function renderAlertas() {
         </div>`).join('')}
     </div>
   `;
+}
+
+const CHANNEL_LABELS = {
+  instagram_business: 'Instagram',
+  linkedin: 'LinkedIn',
+  linkedin_personal: 'LinkedIn (pessoal)',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+};
+const CHANNEL_COLORS = {
+  instagram_business: '#c2185b',
+  linkedin: '#005caa',
+  linkedin_personal: '#005caa',
+  facebook: '#1877f2',
+  tiktok: '#101418',
+};
+
+async function renderSocial() {
+  destroyCharts();
+  document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
+
+  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
+    sb.from('reportei_social_metrics')
+      .select('channel, followers, reach, engagement, date')
+      .eq('company_id', activeCompany)
+      .order('date', { ascending: false }),
+    sb.from('reportei_top_posts')
+      .select('channel, post_type, caption, url, reach, views, interactions, likes, comments, shares, posted_at')
+      .eq('company_id', activeCompany)
+      .order('reach', { ascending: false })
+      .limit(60),
+    sb.from('reportei_followers_history')
+      .select('date, followers')
+      .eq('company_id', activeCompany).eq('channel', 'instagram_business')
+      .order('date', { ascending: true }),
+    sb.from('reportei_audience_gender_age')
+      .select('gender, age_range, followers')
+      .eq('company_id', activeCompany).eq('channel', 'instagram_business'),
+    sb.from('reportei_audience_cities')
+      .select('city, followers')
+      .eq('company_id', activeCompany).eq('channel', 'instagram_business')
+      .order('followers', { ascending: false }).limit(8),
+  ]);
+
+  if (metricsResp.error) {
+    document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados: ${metricsResp.error.message}</div>`;
+    return;
+  }
+
+  const followersHistory = historyResp.data || [];
+  const audienceRows = audienceResp.data || [];
+  const topCities = citiesResp.data || [];
+
+  const latestByChannel = {};
+  (metricsResp.data || []).forEach(row => {
+    if (!latestByChannel[row.channel]) latestByChannel[row.channel] = row;
+  });
+
+  const postsByChannel = {};
+  (postsResp.data || []).forEach(p => {
+    (postsByChannel[p.channel] ||= []).push(p);
+  });
+
+  const CHANNEL_ORDER = ['instagram_business', 'linkedin', 'linkedin_personal', 'facebook', 'tiktok'];
+  const channels = CHANNEL_ORDER
+    .filter(slug => latestByChannel[slug])
+    .map(slug => latestByChannel[slug]);
+
+  if (!channels.length) {
+    document.getElementById('content').innerHTML = stubPanel(
+      'Redes sociais', 'Ainda sem dados sincronizados para esta empresa.', []
+    );
+    return;
+  }
+
+  const fmtNum = (v) => v != null ? Number(v).toLocaleString('pt-BR') : '—';
+
+  document.getElementById('content').innerHTML = channels.map((c, idx) => {
+    const label = CHANNEL_LABELS[c.channel] || c.channel;
+    const isTiktok = c.channel === 'tiktok';
+    const posts = (postsByChannel[c.channel] || []).slice(0, 3);
+
+    return `
+    <div class="social-block" style="${idx === 0 ? '' : ''}">
+      <div class="cap">${label}</div>
+      <div class="kpis">
+        <div class="kpi">
+          <div class="v">${isTiktok ? '—' : fmtNum(c.followers)}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Seguidores (em breve)' : 'Seguidores'}</div>
+        </div>
+        <div class="kpi">
+          <div class="v">${isTiktok ? '—' : fmtNum(c.reach)}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (em breve)' : 'Alcance (30 dias)'}</div>
+        </div>
+        <div class="kpi">
+          <div class="v">${c.engagement ? fmtNum(c.engagement) : '—'}</div>
+          <div class="l muted">${c.engagement ? 'Engajamento' : 'Engajamento (em breve)'}</div>
+        </div>
+      </div>
+      ${c.channel === 'instagram_business' && followersHistory.length ? `
+        <div class="cap">Evolução de seguidores (30 dias)</div>
+        <div class="chart-box" style="margin-bottom:40px"><canvas id="chFollowersHistory"></canvas></div>
+      ` : ''}
+      ${c.channel === 'instagram_business' && audienceRows.length ? `
+        <div class="cap">Audiência por idade e gênero</div>
+        <div class="chart-box" style="margin-bottom:40px"><canvas id="chAudienceGenderAge"></canvas></div>
+      ` : ''}
+      ${c.channel === 'instagram_business' && topCities.length ? `
+        <div class="cap">Cidades com mais seguidores</div>
+        <table class="rank" style="margin-bottom:40px">
+          <thead><tr><th>Cidade</th><th>Seguidores</th></tr></thead>
+          <tbody>
+            ${topCities.map(ct => `<tr><td>${ct.city}</td><td>${fmtNum(ct.followers)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      ` : ''}
+      ${posts.length ? `
+        <div class="cap">Top ${posts.length} post${posts.length > 1 ? 's' : ''} por alcance</div>
+        <div class="posts">
+          ${posts.map((p, i) => `
+            <div class="post">
+              <span class="ptag">${i + 1}º maior alcance</span>
+              <div class="pname">${truncate(p.caption, 140)}</div>
+              <div class="pstats">
+                <div class="pstat"><span>Tipo</span><b>${p.post_type || '—'}</b></div>
+                <div class="pstat"><span>Alcance</span><b>${fmtNum(p.reach)}</b></div>
+                <div class="pstat"><span>Curtidas</span><b>${fmtNum(p.likes)}</b></div>
+                <div class="pstat"><span>Comentários</span><b>${fmtNum(p.comments)}</b></div>
+                <div class="pstat"><span>Compartilhamentos</span><b>${fmtNum(p.shares)}</b></div>
+              </div>
+              <div class="pmeta">
+                ${p.posted_at ? new Date(p.posted_at).toLocaleDateString('pt-BR') : ''}
+                ${p.url ? ` · <a class="post-link" href="${p.url}" target="_blank" rel="noopener">Ver post ↗</a>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>`;
+  }).join('');
+
+  if (followersHistory.length) {
+    chartInstances.push(new Chart(document.getElementById('chFollowersHistory'), {
+      type: 'line',
+      data: {
+        labels: followersHistory.map(r => new Date(r.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
+        datasets: [{ data: followersHistory.map(r => r.followers), borderColor: '#005caa', backgroundColor: 'rgba(0,92,170,.08)', fill: true, tension: .3, pointRadius: 0 }],
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } },
+    }));
+  }
+
+  if (audienceRows.length) {
+    const AGE_ORDER = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+    const GENDER_LABELS = { Male: 'Homens', Female: 'Mulheres', Unknown: 'Não informado' };
+    const GENDER_COLORS = { Male: '#005caa', Female: '#c2185b', Unknown: '#98a0aa' };
+    const genders = [...new Set(audienceRows.map(r => r.gender))];
+    chartInstances.push(new Chart(document.getElementById('chAudienceGenderAge'), {
+      type: 'bar',
+      data: {
+        labels: AGE_ORDER,
+        datasets: genders.map(g => ({
+          label: GENDER_LABELS[g] || g,
+          data: AGE_ORDER.map(age => audienceRows.find(r => r.gender === g && r.age_range === age)?.followers ?? 0),
+          backgroundColor: GENDER_COLORS[g] || '#98a0aa',
+        })),
+      },
+      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { y: { grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } },
+    }));
+  }
 }
 
 let rdGranularity = 'day';
