@@ -309,6 +309,27 @@ function bucketByGranularity(rows, dateKey, valueKey) {
   const labels = Object.keys(buckets).sort();
   return { labels, values: labels.map(k => buckets[k]) };
 }
+
+function bucketAverageByGranularity(rows, dateKey, valueKey) {
+  const buckets = {};
+  rows.forEach(r => {
+    let key;
+    if (periodGranularity === 'day') key = r[dateKey];
+    else if (periodGranularity === 'week') key = isoMonday(r[dateKey]);
+    else key = r[dateKey].slice(0, 7);
+    (buckets[key] ||= []).push(r[valueKey]);
+  });
+  const labels = Object.keys(buckets).sort();
+  return { labels, values: labels.map(k => Math.round((buckets[k].reduce((a,b)=>a+b,0) / buckets[k].length) * 10) / 10) };
+}
+
+function bucketLabelFmt(key) {
+  if (periodGranularity === 'month') {
+    const [y, m] = key.split('-');
+    return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+  }
+  return new Date(key + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
 let chartInstances = [];
 
 function seed(str) {
@@ -375,6 +396,93 @@ async function fetchGA4Real(companyId) {
     sessionsSeries: sessionsBucketed.values,
     devices: devices.length ? devices : [{ label: 'Sem dados', value: 100 }],
   };
+}
+
+async function fetchEngajamentoReal(companyId) {
+  const { start, end } = computePeriodRange();
+  const { data, error } = await sb
+    .from('ga4_daily_metrics')
+    .select('date, bounce_rate, avg_engagement_time_s')
+    .eq('company_id', companyId).gte('date', start).lte('date', end)
+    .order('date', { ascending: true });
+  if (error || !data || !data.length) return null;
+
+  const bounceBucketed = bucketAverageByGranularity(data, 'date', 'bounce_rate');
+  const bounceRate = Math.round((data.reduce((s,r)=>s+r.bounce_rate,0)/data.length)*10)/10;
+  const avgEngagementTime = Math.round(data.reduce((s,r)=>s+r.avg_engagement_time_s,0)/data.length);
+
+  const half = Math.floor(data.length/2) || 1;
+  const firstHalf = data.slice(0,half).reduce((s,r)=>s+r.bounce_rate,0)/half;
+  const secondHalf = data.slice(half).reduce((s,r)=>s+r.bounce_rate,0)/(data.length-half || 1);
+  const deltaPct = firstHalf ? Math.round(((secondHalf-firstHalf)/firstHalf)*1000)/10 : 0;
+
+  return { months: bounceBucketed.labels.map(bucketLabelFmt), bounceSeries: bounceBucketed.values, bounceRate, avgEngagementTime, deltaPct };
+}
+
+async function fetchConteudoReal(companyId) {
+  const { data: dateRows } = await sb.from('ga4_pages').select('date').eq('company_id', companyId).order('date', { ascending: false });
+  if (!dateRows || !dateRows.length) return null;
+  const dates = [...new Set(dateRows.map(r => r.date))];
+  const latestDate = dates[0];
+  const prevDate = dates[1] || null;
+
+  const { data: current } = await sb.from('ga4_pages').select('page_path,pageviews,avg_time_on_page_s').eq('company_id', companyId).eq('date', latestDate);
+  let previous = [];
+  if (prevDate) {
+    const { data: prevData } = await sb.from('ga4_pages').select('page_path,pageviews').eq('company_id', companyId).eq('date', prevDate);
+    previous = prevData || [];
+  }
+
+  return (current || []).map(p => {
+    const prev = previous.find(x => x.page_path === p.page_path);
+    const growthPct = prev && prev.pageviews ? Math.round(((p.pageviews - prev.pageviews) / prev.pageviews) * 1000) / 10 : null;
+    return { path: p.page_path, pageviews: p.pageviews, avgTime: Math.round(p.avg_time_on_page_s), growthPct, isOld: false };
+  });
+}
+
+async function fetchOrigemReal(companyId) {
+  const { data: dateRows } = await sb.from('ga4_traffic_sources').select('date').eq('company_id', companyId).order('date', { ascending: false }).limit(1);
+  if (!dateRows || !dateRows.length) return null;
+  const latestDate = dateRows[0].date;
+
+  const { data } = await sb.from('ga4_traffic_sources').select('channel,source_name,sessions').eq('company_id', companyId).eq('date', latestDate);
+  if (!data || !data.length) return null;
+
+  const CHANNEL_LABEL_PT = { organico:'Orgânico', direto:'Direto', social:'Social', referencia:'Referência', pago:'Pago', ia:'IA' };
+  const CHANNEL_COLOR_PT = { organico:'#005caa', direto:'#1DB3E8', social:'#7B3FA0', referencia:'#c98a1e', pago:'#d64545', ia:'#0e9f6e' };
+
+  const totals = {};
+  data.forEach(r => { totals[r.channel] = (totals[r.channel]||0) + r.sessions; });
+  const totalSessions = Object.values(totals).reduce((a,b)=>a+b,0) || 1;
+  const dist = Object.entries(totals).map(([ch,val]) => ({
+    label: CHANNEL_LABEL_PT[ch] || ch, color: CHANNEL_COLOR_PT[ch] || '#98a0aa',
+    pct: Math.round((val/totalSessions)*1000)/10,
+  }));
+
+  const domains = data
+    .filter(r => !['(direct)','(not set)','(none)'].includes(r.source_name))
+    .sort((a,b) => b.sessions - a.sessions)
+    .slice(0, 8)
+    .map(r => ({ domain: r.source_name, sessions: r.sessions }));
+
+  return { dist, domains };
+}
+
+async function fetchComparativoGrupoReal() {
+  const results = [];
+  for (const c of COMPANIES) {
+    if (GA4_REAL_COMPANIES.has(c.id)) {
+      const d = await fetchGA4Real(c.id);
+      if (d) {
+        results.push({ id: c.id, name: c.name, dot: c.dot, sessions: d.sessions, engagementRate: Math.round((100 - d.bounceRate)*10)/10, conversionRate: null, deltaPct: d.deltaPct });
+        continue;
+      }
+    }
+    const g = mockGA4(c.id);
+    const r = seed(c.id + 'conv');
+    results.push({ id: c.id, name: c.name, dot: c.dot, sessions: g.sessions, engagementRate: Math.round((45+r()*35)*10)/10, conversionRate: Math.round((1+r()*6)*100)/100, deltaPct: g.deltaPct, isMock: true });
+  }
+  return results.sort((a,b) => b.sessions - a.sessions);
 }
 
 function mockGA4(companyId) {
@@ -730,17 +838,21 @@ async function renderAcessos() {
   document.getElementById('heatmapWrap').innerHTML = grid;
 }
 
-function renderEngajamento() {
+async function renderEngajamento() {
   destroyCharts();
-  const d = mockEngajamento(activeCompany);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany);
+  const d = isReal ? await fetchEngajamentoReal(activeCompany) : mockEngajamento(activeCompany);
+  if (!d) { document.getElementById('content').innerHTML = stubPanel('Engajamento', 'Ainda sem dados de GA4 sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
     <div class="grid grid-2" style="margin-bottom:16px">
       ${kpiCard('Taxa de rejeição', d.bounceRate + '%', d.deltaPct)}
-      ${kpiCard('Tempo médio de engajamento', d.avgEngagementTime + 's', -3.2)}
+      ${kpiCard('Tempo médio de engajamento', d.avgEngagementTime + 's', 0)}
     </div>
     <div class="card">
       <div class="section-title">Evolução da taxa de rejeição</div>
-      <div class="section-sub">% de sessões sem interação, por mês</div>
+      <div class="section-sub">% de sessões sem interação</div>
       <div class="chart-box"><canvas id="chBounce"></canvas></div>
     </div>
   `;
@@ -752,20 +864,25 @@ function renderEngajamento() {
 }
 
 let contentSort = 'pageviews';
-function renderConteudo() {
+async function renderConteudo() {
   destroyCharts();
-  const pages = mockConteudo(activeCompany);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany);
+  const pages = isReal ? await fetchConteudoReal(activeCompany) : mockConteudo(activeCompany);
+  if (!pages || !pages.length) { document.getElementById('content').innerHTML = stubPanel('Conteúdo', 'Ainda sem dados de páginas sincronizados para esta empresa.', []); return; }
+
   const sorters = {
     pageviews: (a,b) => b.pageviews - a.pageviews,
-    growthPct: (a,b) => b.growthPct - a.growthPct,
+    growthPct: (a,b) => (b.growthPct ?? -999) - (a.growthPct ?? -999),
     avgTime:   (a,b) => b.avgTime - a.avgTime,
-    old:       (a,b) => (b.isOld - a.isOld) || (b.pageviews - a.pageviews),
   };
-  const labels = { pageviews:'Mais acessadas', growthPct:'Maior crescimento', avgTime:'Maior tempo', old:'Conteúdo antigo relevante' };
-  const sorted = [...pages].sort(sorters[contentSort]);
+  const labels = { pageviews:'Mais acessadas', growthPct:'Maior crescimento', avgTime:'Maior tempo' };
+  const sorted = [...pages].sort(sorters[contentSort] || sorters.pageviews);
   const top5 = [...pages].sort(sorters.pageviews).slice(0,5);
 
   document.getElementById('content').innerHTML = `
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
+    ${isReal ? `<div class="section-sub" style="margin-bottom:16px">"Crescimento" compara com a última sincronização anterior — pode levar alguns dias para aparecer.</div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <div class="section-title">Top 5 páginas por visualizações</div>
       <div class="chart-box"><canvas id="chPagesBar"></canvas></div>
@@ -781,7 +898,7 @@ function renderConteudo() {
           ${sorted.map(p => `<tr>
             <td>${p.path}${p.isOld ? ' <span class="stub-tag" style="margin:0">antigo</span>' : ''}</td>
             <td>${p.pageviews.toLocaleString('pt-BR')}</td>
-            <td style="color:${p.growthPct>=0?'var(--up)':'var(--dn)'}">${p.growthPct>=0?'+':''}${p.growthPct}%</td>
+            <td style="color:${p.growthPct==null?'var(--ink-3)':p.growthPct>=0?'var(--up)':'var(--dn)'}">${p.growthPct==null?'—':(p.growthPct>=0?'+':'')+p.growthPct+'%'}</td>
             <td>${p.avgTime}s</td>
           </tr>`).join('')}
         </tbody>
@@ -798,10 +915,14 @@ function renderConteudo() {
   }));
 }
 
-function renderOrigem() {
+async function renderOrigem() {
   destroyCharts();
-  const d = mockOrigem(activeCompany);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany);
+  const d = isReal ? await fetchOrigemReal(activeCompany) : mockOrigem(activeCompany);
+  if (!d) { document.getElementById('content').innerHTML = stubPanel('Origem dos acessos', 'Ainda sem dados sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
     <div class="grid grid-2" style="gap:16px">
       <div class="card">
         <div class="section-title">Distribuição por canal</div>
@@ -812,7 +933,7 @@ function renderOrigem() {
         <table class="rank">
           <thead><tr><th>Domínio</th><th>Sessões</th></tr></thead>
           <tbody>
-            ${d.domains.map(x => `<tr><td>${x.domain}</td><td>${x.sessions.toLocaleString('pt-BR')}</td></tr>`).join('')}
+            ${d.domains.length ? d.domains.map(x => `<tr><td>${x.domain}</td><td>${x.sessions.toLocaleString('pt-BR')}</td></tr>`).join('') : '<tr><td colspan="2">Sem domínios de referência no período.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -971,9 +1092,10 @@ function renderBenchmark() {
   }));
 }
 
-function renderComparativoGrupo() {
+async function renderComparativoGrupo() {
   destroyCharts();
-  const rows = mockComparativoGrupo();
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const rows = await fetchComparativoGrupoReal();
   const best = rows[0], worst = [...rows].sort((a,b)=>a.deltaPct-b.deltaPct)[0];
   document.getElementById('content').innerHTML = `
     <div class="grid grid-2" style="margin-bottom:16px">
@@ -986,14 +1108,15 @@ function renderComparativoGrupo() {
     </div>
     <div class="card">
       <div class="section-title">Ranking do grupo</div>
+      <div class="section-sub">Empresas marcadas com * ainda usam dados de exemplo (GA4 não conectado)</div>
       <table class="rank">
         <thead><tr><th>Site</th><th>Sessões</th><th>Engajamento</th><th>Conversão</th><th>Variação</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr>
-            <td><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${r.dot};margin-right:8px"></span>${r.name}</td>
+            <td><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${r.dot};margin-right:8px"></span>${r.name}${r.isMock ? ' *' : ''}</td>
             <td>${r.sessions.toLocaleString('pt-BR')}</td>
             <td>${r.engagementRate}%</td>
-            <td>${r.conversionRate}%</td>
+            <td>${r.conversionRate != null ? r.conversionRate + '%' : '—'}</td>
             <td style="color:${r.deltaPct>=0?'var(--up)':'var(--dn)'}">${r.deltaPct>=0?'+':''}${r.deltaPct}%</td>
           </tr>`).join('')}
         </tbody>
