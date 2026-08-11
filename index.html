@@ -440,6 +440,34 @@ async function fetchConteudoReal(companyId) {
   });
 }
 
+async function fetchGeoTrafficReal(companyId) {
+  const { data: dateRows } = await sb.from('ga4_traffic_sources').select('date').eq('company_id', companyId).order('date', { ascending: false }).limit(1);
+  if (!dateRows || !dateRows.length) return null;
+
+  const { data } = await sb.from('ga4_traffic_sources').select('source_name,sessions').eq('company_id', companyId).eq('date', dateRows[0].date).eq('channel', 'ia');
+  if (!data || !data.length) return [];
+
+  const PLATFORM_MAP = [
+    { hint: 'chatgpt', label: 'ChatGPT', color: '#0e9f6e' },
+    { hint: 'openai', label: 'ChatGPT', color: '#0e9f6e' },
+    { hint: 'perplexity', label: 'Perplexity', color: '#c98a1e' },
+    { hint: 'gemini', label: 'Gemini', color: '#005caa' },
+    { hint: 'copilot', label: 'Copilot', color: '#1DB3E8' },
+    { hint: 'claude', label: 'Claude', color: '#7B3FA0' },
+  ];
+
+  const totals = {};
+  data.forEach(r => {
+    const match = PLATFORM_MAP.find(p => r.source_name.toLowerCase().includes(p.hint));
+    const label = match?.label || 'Outra IA';
+    const color = match?.color || '#98a0aa';
+    if (!totals[label]) totals[label] = { platform: label, color, referralSessions: 0 };
+    totals[label].referralSessions += r.sessions;
+  });
+
+  return Object.values(totals).sort((a,b) => b.referralSessions - a.referralSessions);
+}
+
 async function fetchOrigemReal(companyId) {
   const { data: dateRows } = await sb.from('ga4_traffic_sources').select('date').eq('company_id', companyId).order('date', { ascending: false }).limit(1);
   if (!dateRows || !dateRows.length) return null;
@@ -1079,15 +1107,21 @@ async function renderSEO() {
   }
 }
 
-function renderGEO() {
+async function renderGEO() {
   destroyCharts();
-  const d = mockGEO(activeCompany);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany);
+  const realTraffic = isReal ? await fetchGeoTrafficReal(activeCompany) : null;
+  const d = isReal ? (realTraffic || []) : mockGEO(activeCompany);
+
   document.getElementById('content').innerHTML = `
+    ${isReal ? `<div class="stub-tag" style="margin-bottom:12px">Tráfego por IA é real (detectado pela origem da sessão no GA4). Taxa de citação ainda não tem fonte de dados conectada.</div>` : ''}
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
     <div class="grid grid-2" style="gap:16px">
       <div class="card">
         <div class="section-title">Taxa de citação por plataforma de IA</div>
-        <div class="section-sub">% das consultas relevantes em que a marca aparece citada</div>
-        ${d.map(p => `<div class="geo-row">
+        <div class="section-sub">${isReal ? 'Ainda sem fonte de dados conectada para esta métrica' : '% das consultas relevantes em que a marca aparece citada'}</div>
+        ${isReal ? '' : d.map(p => `<div class="geo-row">
           <div class="geo-name">${p.platform}</div>
           <div class="geo-bar-track"><div class="geo-bar-fill" style="width:${p.citationRate}%; background:${p.color}"></div></div>
           <div class="geo-pct">${p.citationRate}%</div>
@@ -1095,15 +1129,18 @@ function renderGEO() {
       </div>
       <div class="card">
         <div class="section-title">Tráfego de referência por IA</div>
-        <div class="chart-box"><canvas id="chGeoBar"></canvas></div>
+        ${isReal && !d.length ? `<div class="section-sub">Nenhuma sessão originada de IA generativa detectada no período.</div>` : ''}
+        ${!isReal || d.length ? `<div class="chart-box"><canvas id="chGeoBar"></canvas></div>` : ''}
       </div>
     </div>
   `;
-  chartInstances.push(new Chart(document.getElementById('chGeoBar'), {
-    type:'bar',
-    data:{ labels:d.map(p=>p.platform), datasets:[{ data:d.map(p=>p.referralSessions), backgroundColor:d.map(p=>p.color) }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
-  }));
+  if (!isReal || d.length) {
+    chartInstances.push(new Chart(document.getElementById('chGeoBar'), {
+      type:'bar',
+      data:{ labels:d.map(p=>p.platform), datasets:[{ data:d.map(p=>p.referralSessions), backgroundColor:d.map(p=>p.color) }]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+    }));
+  }
 }
 
 async function renderPerformance() {
