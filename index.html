@@ -471,6 +471,30 @@ async function fetchOrigemReal(companyId) {
 // Empresas com Search Console já conectado de verdade
 const GSC_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae']);
 
+async function fetchPerformanceReal(companyId) {
+  const { data, error } = await sb
+    .from('core_web_vitals')
+    .select('device, lcp, cls, inp, is_field_data, date')
+    .eq('company_id', companyId)
+    .order('date', { ascending: false })
+    .limit(4);
+  if (error || !data || !data.length) return null;
+
+  const latestDate = data[0].date;
+  const rows = data.filter(r => r.date === latestDate);
+  const mobile = rows.find(r => r.device === 'mobile');
+  const desktop = rows.find(r => r.device === 'desktop');
+  if (!mobile && !desktop) return null;
+  const primary = mobile || desktop;
+
+  return {
+    lcp: primary.lcp, cls: primary.cls, inp: primary.inp,
+    isFieldData: primary.is_field_data,
+    mobileLcp: mobile?.lcp ?? null, desktopLcp: desktop?.lcp ?? null,
+    date: latestDate,
+  };
+}
+
 async function fetchSEOReal(companyId) {
   const { start, end } = computePeriodRange();
   const { data, error } = await sb
@@ -1065,21 +1089,34 @@ function renderGEO() {
   }));
 }
 
-function renderPerformance() {
+async function renderPerformance() {
   destroyCharts();
-  const d = mockPerformance(activeCompany);
-  const sLcp = vitalStatus('lcp', d.lcp), sCls = vitalStatus('cls', d.cls), sInp = vitalStatus('inp', d.inp);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany);
+  const d = isReal ? await fetchPerformanceReal(activeCompany) : mockPerformance(activeCompany);
+  if (!d) { document.getElementById('content').innerHTML = stubPanel('Performance técnica', 'Ainda sem dados de Core Web Vitals para esta empresa.', []); return; }
+
+  const sLcp = vitalStatus('lcp', d.lcp), sCls = vitalStatus('cls', d.cls);
+  const sInp = d.inp != null ? vitalStatus('inp', d.inp) : null;
   const ringPct = { 'Bom':85, 'Atenção':55, 'Crítico':25 };
-  const gauge = (label, value, unit, status) => `
+  const gauge = (label, value, unit, status) => status ? `
     <div style="text-align:center">
       <div class="gauge" style="margin:0 auto; background: conic-gradient(${status.color} ${ringPct[status.label]}%, #eceef0 0)">${value}${unit}</div>
       <div class="kpi-label" style="margin-top:10px">${label}</div>
       <div class="kpi-delta" style="color:${status.color}">${status.label}</div>
+    </div>` : `
+    <div style="text-align:center">
+      <div class="gauge" style="margin:0 auto; background:#eceef0; color:var(--ink-3); font-size:11px">sem dado</div>
+      <div class="kpi-label" style="margin-top:10px">${label}</div>
+      <div class="kpi-delta" style="color:var(--ink-3)">Só em dado de campo</div>
     </div>`;
+
   document.getElementById('content').innerHTML = `
+    ${isReal && d.isFieldData === false ? `<div class="stub-tag" style="margin-bottom:12px">Dados de laboratório (simulação Lighthouse) — este domínio ainda não tem tráfego suficiente no Chrome para o Google publicar dados reais de usuários (CrUX). INP só existe em dado de campo.</div>` : ''}
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — sem PageSpeed conectado para esta empresa</div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <div class="section-title">Core Web Vitals</div>
-      <div class="section-sub">Médias do período</div>
+      <div class="section-sub">${isReal ? `Última verificação: ${d.date}` : 'Médias do período'}</div>
       <div class="grid grid-3">
         ${gauge('LCP', d.lcp, 's', sLcp)}
         ${gauge('CLS', d.cls, '', sCls)}
@@ -1093,18 +1130,21 @@ function renderPerformance() {
       </div>
       <div class="card">
         <div class="kpi-label">Uptime do site</div>
-        <div class="kpi-value">${d.uptime}%</div>
-        <div class="section-sub" style="margin-top:10px">no período analisado</div>
+        ${isReal
+          ? `<div class="section-sub" style="margin-top:10px">Ainda sem fonte de dados conectada para uptime.</div>`
+          : `<div class="kpi-value">${d.uptime}%</div><div class="section-sub" style="margin-top:10px">no período analisado</div>`}
       </div>
     </div>
     <div class="card">
       <div class="section-title">Páginas com erro</div>
-      <table class="rank">
-        <thead><tr><th>Página</th><th>Código</th><th>Ocorrências</th></tr></thead>
-        <tbody>
-          ${d.errors.map(e => `<tr><td>${e.path}</td><td>${e.code}</td><td>${e.hits}</td></tr>`).join('')}
-        </tbody>
-      </table>
+      ${isReal
+        ? `<div class="section-sub">Ainda sem fonte de dados conectada para erros de página.</div>`
+        : `<table class="rank">
+            <thead><tr><th>Página</th><th>Código</th><th>Ocorrências</th></tr></thead>
+            <tbody>
+              ${d.errors.map(e => `<tr><td>${e.path}</td><td>${e.code}</td><td>${e.hits}</td></tr>`).join('')}
+            </tbody>
+          </table>`}
     </div>
   `;
   chartInstances.push(new Chart(document.getElementById('chMobDesk'), {
