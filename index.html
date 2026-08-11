@@ -468,6 +468,44 @@ async function fetchOrigemReal(companyId) {
   return { dist, domains };
 }
 
+// Empresas com Search Console já conectado de verdade
+const GSC_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae']);
+
+async function fetchSEOReal(companyId) {
+  const { start, end } = computePeriodRange();
+  const { data, error } = await sb
+    .from('gsc_daily_metrics')
+    .select('date, impressions, clicks, ctr, position')
+    .eq('company_id', companyId).gte('date', start).lte('date', end)
+    .order('date', { ascending: true });
+  if (error || !data || !data.length) return null;
+
+  const impressions = data.reduce((s,r)=>s+r.impressions,0);
+  const clicks = data.reduce((s,r)=>s+r.clicks,0);
+  const ctr = impressions ? Math.round((clicks/impressions)*10000)/100 : 0;
+  const position = Math.round((data.reduce((s,r)=>s+r.position,0)/data.length)*10)/10;
+
+  const clicksBucketed = bucketByGranularity(data, 'date', 'clicks');
+
+  const { data: queryRows } = await sb
+    .from('gsc_queries')
+    .select('date')
+    .eq('company_id', companyId)
+    .order('date', { ascending: false }).limit(1);
+
+  let keywords = [];
+  if (queryRows && queryRows.length) {
+    const { data: kw } = await sb.from('gsc_queries').select('query,clicks,impressions,position').eq('company_id', companyId).eq('date', queryRows[0].date).order('clicks', { ascending: false }).limit(10);
+    keywords = (kw || []).map(k => ({ query: k.query, clicks: k.clicks, impressions: k.impressions, position: k.position, delta: null }));
+  }
+
+  return {
+    impressions, clicks, ctr, position,
+    months: clicksBucketed.labels.map(bucketLabelFmt), clicksSeries: clicksBucketed.values,
+    keywords, indexedPct: null,
+  };
+}
+
 async function fetchComparativoGrupoReal() {
   const results = [];
   for (const c of COMPANIES) {
@@ -946,39 +984,58 @@ async function renderOrigem() {
   }));
 }
 
-function renderSEO() {
+async function renderSEO() {
   destroyCharts();
-  const d = mockGSC(activeCompany);
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const isReal = GSC_REAL_COMPANIES.has(activeCompany);
+  const d = isReal ? await fetchSEOReal(activeCompany) : mockGSC(activeCompany);
+  if (!d) { document.getElementById('content').innerHTML = stubPanel('SEO', 'Ainda sem dados de Search Console sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — Search Console ainda não conectado para esta empresa</div>` : ''}
     <div class="grid grid-4" style="margin-bottom:16px">
-      ${kpiCard('Impressões', d.impressions.toLocaleString('pt-BR'), 6.4)}
-      ${kpiCard('Cliques', d.clicks.toLocaleString('pt-BR'), 4.1)}
-      ${kpiCard('CTR médio', d.ctr + '%', 0.8)}
-      ${kpiCard('Posição média', d.position, -1.4)}
+      ${kpiCard('Impressões', d.impressions.toLocaleString('pt-BR'), isReal ? 0 : 6.4)}
+      ${kpiCard('Cliques', d.clicks.toLocaleString('pt-BR'), isReal ? 0 : 4.1)}
+      ${kpiCard('CTR médio', d.ctr + '%', isReal ? 0 : 0.8)}
+      ${kpiCard('Posição média', d.position, isReal ? 0 : -1.4)}
     </div>
+    ${isReal ? `
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Evolução de cliques</div>
+      <div class="chart-box"><canvas id="chSeoClicks"></canvas></div>
+    </div>` : ''}
     <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px">
       <div class="card">
         <div class="section-title">Principais palavras-chave</div>
+        ${isReal ? `<div class="section-sub">Variação aparece após a próxima sincronização</div>` : ''}
         <table class="rank">
           <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
           <tbody>
             ${d.keywords.map(k => `<tr>
               <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
               <td>${k.position}</td>
-              <td style="color:${k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta>=0?'+':''}${k.delta}</td>
+              <td style="color:${k.delta==null?'var(--ink-3)':k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta==null?'—':(k.delta>=0?'+':'')+k.delta}</td>
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
       <div class="card">
         <div class="section-title">Páginas indexadas</div>
-        <div class="gauge-wrap" style="margin-top:12px">
-          <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
-          <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
-        </div>
+        ${d.indexedPct == null
+          ? `<div class="section-sub" style="margin-top:12px">Ainda não conectamos uma fonte para esse dado (precisaria da API de Indexação/Sitemaps do Google).</div>`
+          : `<div class="gauge-wrap" style="margin-top:12px">
+              <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
+              <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
+            </div>`}
       </div>
     </div>
   `;
+  if (isReal) {
+    chartInstances.push(new Chart(document.getElementById('chSeoClicks'), {
+      type:'line',
+      data:{ labels:d.months, datasets:[{ data:d.clicksSeries, borderColor:'#005caa', backgroundColor:'rgba(0,92,170,.08)', fill:true, tension:.35, pointRadius:0 }]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
+    }));
+  }
 }
 
 function renderGEO() {
