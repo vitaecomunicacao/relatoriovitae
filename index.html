@@ -465,7 +465,14 @@ async function fetchOrigemReal(companyId) {
     .slice(0, 8)
     .map(r => ({ domain: r.source_name, sessions: r.sessions }));
 
-  return { dist, domains };
+  let locations = [];
+  const { data: geoDateRow } = await sb.from('ga4_geo').select('date').eq('company_id', companyId).order('date', { ascending: false }).limit(1);
+  if (geoDateRow && geoDateRow.length) {
+    const { data: geo } = await sb.from('ga4_geo').select('city,region,country,sessions').eq('company_id', companyId).eq('date', geoDateRow[0].date).order('sessions', { ascending: false }).limit(10);
+    locations = (geo || []).filter(g => g.city && g.city !== '(not set)');
+  }
+
+  return { dist, domains, locations };
 }
 
 // Empresas com Search Console já conectado de verdade
@@ -1000,6 +1007,16 @@ async function renderOrigem() {
         </table>
       </div>
     </div>
+    ${isReal && d.locations && d.locations.length ? `
+    <div class="card" style="margin-top:16px">
+      <div class="section-title">Cidades com mais acessos</div>
+      <table class="rank">
+        <thead><tr><th>Cidade</th><th>Estado</th><th>País</th><th>Sessões</th></tr></thead>
+        <tbody>
+          ${d.locations.map(l => `<tr><td>${l.city}</td><td>${l.region || '—'}</td><td>${l.country || '—'}</td><td>${l.sessions.toLocaleString('pt-BR')}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
   `;
   chartInstances.push(new Chart(document.getElementById('chOrigemPie'), {
     type:'doughnut',
