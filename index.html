@@ -324,7 +324,7 @@ function computePeriodRange() {
 
 function renderPeriodBar() {
   const wrap = document.getElementById('periodBarWrap');
-  if (activeTab !== 'analytics') { wrap.classList.remove('show'); return; }
+  if (activeTab !== 'analytics' && activeTab !== 'social') { wrap.classList.remove('show'); return; }
   wrap.classList.add('show');
 
   const presets = [
@@ -388,6 +388,21 @@ function bucketAverageByGranularity(rows, dateKey, valueKey) {
   });
   const labels = Object.keys(buckets).sort();
   return { labels, values: labels.map(k => Math.round((buckets[k].reduce((a,b)=>a+b,0) / buckets[k].length) * 10) / 10) };
+}
+
+// Pra métricas de "estoque" (ex: seguidores) — pega o último valor de cada
+// bucket, em vez de somar ou tirar média (o que não faria sentido aqui).
+function bucketLastByGranularity(rows, dateKey, valueKey) {
+  const buckets = {};
+  rows.forEach(r => {
+    let key;
+    if (periodGranularity === 'day') key = r[dateKey];
+    else if (periodGranularity === 'week') key = isoMonday(r[dateKey]);
+    else key = r[dateKey].slice(0, 7);
+    if (!buckets[key] || r[dateKey] > buckets[key].date) buckets[key] = { date: r[dateKey], value: r[valueKey] };
+  });
+  const labels = Object.keys(buckets).sort();
+  return { labels, values: labels.map(k => buckets[k].value) };
 }
 
 function bucketLabelFmt(key) {
@@ -1540,19 +1555,24 @@ async function renderSocial() {
   const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
 
+  const { start, end } = computePeriodRange();
+
   const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
     sb.from('reportei_social_metrics')
       .select('channel, followers, reach, engagement, date')
       .eq('company_id', activeCompany)
+      .lte('date', end)
       .order('date', { ascending: false }),
     sb.from('reportei_top_posts')
       .select('channel, post_type, caption, url, reach, views, interactions, likes, comments, shares, posted_at')
       .eq('company_id', activeCompany)
+      .gte('posted_at', start).lte('posted_at', end + 'T23:59:59')
       .order('reach', { ascending: false })
-      .limit(60),
+      .limit(200),
     sb.from('reportei_followers_history')
       .select('date, followers')
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
+      .gte('date', start).lte('date', end)
       .order('date', { ascending: true }),
     sb.from('reportei_audience_gender_age')
       .select('gender, age_range, followers')
@@ -1622,7 +1642,7 @@ async function renderSocial() {
         </div>
         <div class="kpi">
           <div class="v">${isTiktok ? '—' : fmtNum(c.reach)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : 'Alcance (30 dias)'}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : `Alcance (últ. 30 dias, em ${c.date})`}</div>
         </div>
         <div class="kpi">
           <div class="v">${engagement ? fmtNum(engagement) : '—'}</div>
@@ -1630,7 +1650,7 @@ async function renderSocial() {
         </div>
       </div>
       ${c.channel === 'instagram_business' && followersHistory.length ? `
-        <div class="cap">Evolução de seguidores (30 dias)</div>
+        <div class="cap">Evolução de seguidores</div>
         <div class="chart-box" style="margin-bottom:40px"><canvas id="chFollowersHistory"></canvas></div>
       ` : ''}
       ${c.channel === 'instagram_business' && audienceRows.length ? `
@@ -1672,11 +1692,12 @@ async function renderSocial() {
   }).join('');
 
   if (followersHistory.length) {
+    const fh = bucketLastByGranularity(followersHistory, 'date', 'followers');
     chartInstances.push(new Chart(document.getElementById('chFollowersHistory'), {
       type: 'line',
       data: {
-        labels: followersHistory.map(r => new Date(r.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
-        datasets: [{ data: followersHistory.map(r => r.followers), borderColor: '#005caa', backgroundColor: 'rgba(0,92,170,.08)', fill: true, tension: .3, pointRadius: 0 }],
+        labels: fh.labels.map(bucketLabelFmt),
+        datasets: [{ data: fh.values, borderColor: '#005caa', backgroundColor: 'rgba(0,92,170,.08)', fill: true, tension: .3, pointRadius: 0 }],
       },
       options: { plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } },
     }));
