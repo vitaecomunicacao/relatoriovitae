@@ -103,7 +103,8 @@ table.rank { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.rank th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line); }
 table.rank td { padding: 10px 12px; border-bottom: 1px solid var(--line-2); }
 table.rank tr:last-child td { border-bottom: none; }
-.heatmap { display: grid; grid-template-columns: 40px repeat(24, 1fr); gap: 2px; }
+.heatmap-scroll { overflow-x: auto; }
+.heatmap { display: grid; grid-template-columns: 40px repeat(24, minmax(22px, 1fr)); gap: 2px; min-width: 640px; }
 .heatmap .hcell { aspect-ratio: 1; border-radius: 2px; }
 .heatmap .hlabel { font-size: 10px; color: var(--ink-3); display: flex; align-items: center; }
 .gauge-wrap { display: flex; align-items: center; gap: 16px; }
@@ -144,8 +145,10 @@ table.rank tr:last-child td { border-bottom: none; }
 .social-stat-row .v.muted { color: var(--ink-3); font-weight: 500; font-size: 12px; }
 
 /* ── Estilo editorial (posts / KPIs) — igual ao relatório de referência ── */
-.social-block { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); }
-.social-block:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.social-block { margin-top: 32px; padding: 20px 24px; border-radius: 12px; background: var(--wash); border-left: 4px solid var(--line); }
+.social-block:first-child { margin-top: 0; }
+.social-cap-row { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; }
+.social-cap-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .cap {
   font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-3); margin-bottom: 22px;
@@ -404,6 +407,17 @@ function seed(str) {
 
 // Empresas com GA4 já conectado de verdade (as demais seguem em mock)
 const GA4_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae', 'albert', 'namura']);
+
+async function fetchHourlyReal(companyId) {
+  const { data: dateRows } = await sb.from('ga4_hourly_pattern').select('date').eq('company_id', companyId).order('date', { ascending: false }).limit(1);
+  if (!dateRows || !dateRows.length) return null;
+  const { data } = await sb.from('ga4_hourly_pattern').select('day_of_week, hour, sessions').eq('company_id', companyId).eq('date', dateRows[0].date);
+  if (!data || !data.length) return null;
+  const max = Math.max(...data.map(r => r.sessions), 1);
+  const grid = {};
+  data.forEach(r => { grid[`${r.day_of_week}-${r.hour}`] = r.sessions; });
+  return { grid, max };
+}
 
 async function fetchGA4Real(companyId) {
   const { start, end } = computePeriodRange();
@@ -1019,6 +1033,7 @@ async function renderAcessos() {
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchGA4Real(activeCompany) : mockGA4(activeCompany);
+  const hourly = isReal ? await fetchHourlyReal(activeCompany) : null;
   if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Acessos ao site', 'Ainda sem dados de GA4 sincronizados para esta empresa.', []); return; }
   const sessionsSeries = isReal ? d.sessionsSeries : d.usersSeries.map(v => Math.round(v * 1.25));
@@ -1036,8 +1051,8 @@ async function renderAcessos() {
     </div>
     <div class="card">
       <div class="section-title">Padrão de acesso (dia × horário)</div>
-      <div class="section-sub">${isReal ? 'Estimativa — ainda não sincronizamos esse detalhe do GA4' : 'Intensidade de sessões'}</div>
-      <div id="heatmapWrap"></div>
+      <div class="section-sub">${isReal && hourly ? 'Sessões reais dos últimos 30 dias' : isReal ? 'Ainda sem dados sincronizados — sincronize o GA4 de novo' : 'Estimativa (dados de exemplo)'}</div>
+      <div class="heatmap-scroll"><div id="heatmapWrap"></div></div>
     </div>
   `;
   chartInstances.push(new Chart(document.getElementById('chAcessosLine'), {
@@ -1051,18 +1066,30 @@ async function renderAcessos() {
     options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}} }
   }));
 
-  const r = seed(activeCompany + 'heat');
   const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   let grid = '<div class="heatmap">';
   grid += '<div></div>';
   for (let h=0; h<24; h++) grid += `<div class="hlabel" style="justify-content:center">${h%3===0?h:''}</div>`;
-  days.forEach(day => {
-    grid += `<div class="hlabel">${day}</div>`;
-    for (let h=0; h<24; h++) {
-      const v = r();
-      grid += `<div class="hcell" style="background: rgba(0,92,170,${(v*0.85).toFixed(2)})"></div>`;
+
+  if (isReal && hourly) {
+    for (let dow=0; dow<7; dow++) {
+      grid += `<div class="hlabel">${days[dow]}</div>`;
+      for (let h=0; h<24; h++) {
+        const v = hourly.grid[`${dow}-${h}`] || 0;
+        const intensity = (v / hourly.max) * 0.85;
+        grid += `<div class="hcell" style="background: rgba(0,92,170,${intensity.toFixed(2)})" title="${v} sessões"></div>`;
+      }
     }
-  });
+  } else {
+    const r = seed(activeCompany + 'heat');
+    days.forEach(day => {
+      grid += `<div class="hlabel">${day}</div>`;
+      for (let h=0; h<24; h++) {
+        const v = r();
+        grid += `<div class="hcell" style="background: rgba(0,92,170,${(v*0.85).toFixed(2)})"></div>`;
+      }
+    });
+  }
   grid += '</div>';
   document.getElementById('heatmapWrap').innerHTML = grid;
 }
@@ -1212,30 +1239,19 @@ async function renderSEO() {
       <div class="section-title">Evolução de cliques</div>
       <div class="chart-box"><canvas id="chSeoClicks"></canvas></div>
     </div>` : ''}
-    <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px">
-      <div class="card">
-        <div class="section-title">Principais palavras-chave</div>
-        ${isReal ? `<div class="section-sub">Variação aparece após a próxima sincronização</div>` : ''}
-        <table class="rank">
-          <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
-          <tbody>
-            ${d.keywords.map(k => `<tr>
-              <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
-              <td>${k.position}</td>
-              <td style="color:${k.delta==null?'var(--ink-3)':k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta==null?'—':(k.delta>=0?'+':'')+k.delta}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <div class="card">
-        <div class="section-title">Páginas indexadas</div>
-        ${d.indexedPct == null
-          ? `<div class="section-sub" style="margin-top:12px">Ainda não conectamos uma fonte para esse dado (precisaria da API de Indexação/Sitemaps do Google).</div>`
-          : `<div class="gauge-wrap" style="margin-top:12px">
-              <div class="gauge" style="background: conic-gradient(#005caa ${d.indexedPct}%, #eceef0 0)">${d.indexedPct}%</div>
-              <div class="section-sub" style="margin:0">do site está indexado no Google.</div>
-            </div>`}
-      </div>
+    <div class="card">
+      <div class="section-title">Principais palavras-chave</div>
+      ${isReal ? `<div class="section-sub">Variação aparece após a próxima sincronização</div>` : ''}
+      <table class="rank">
+        <thead><tr><th>Palavra-chave</th><th>Cliques</th><th>Impressões</th><th>Posição</th><th>Variação</th></tr></thead>
+        <tbody>
+          ${d.keywords.map(k => `<tr>
+            <td>${k.query}</td><td>${k.clicks}</td><td>${k.impressions.toLocaleString('pt-BR')}</td>
+            <td>${k.position}</td>
+            <td style="color:${k.delta==null?'var(--ink-3)':k.delta>=0?'var(--up)':'var(--dn)'}">${k.delta==null?'—':(k.delta>=0?'+':'')+k.delta}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
     </div>
   `;
   if (isReal) {
@@ -1581,26 +1597,36 @@ async function renderSocial() {
 
   const fmtNum = (v) => v != null ? Number(v).toLocaleString('pt-BR') : '—';
 
+  const engagementByChannel = {};
+  Object.entries(postsByChannel).forEach(([ch, list]) => {
+    engagementByChannel[ch] = list.reduce((s, p) => s + (p.interactions || 0), 0);
+  });
+
   document.getElementById('content').innerHTML = channels.map((c, idx) => {
     const label = CHANNEL_LABELS[c.channel] || c.channel;
+    const color = CHANNEL_COLORS[c.channel] || '#98a0aa';
     const isTiktok = c.channel === 'tiktok';
     const posts = (postsByChannel[c.channel] || []).slice(0, 3);
+    const engagement = engagementByChannel[c.channel] || c.engagement || 0;
 
     return `
-    <div class="social-block" style="${idx === 0 ? '' : ''}">
-      <div class="cap">${label}</div>
+    <div class="social-block" style="border-left-color:${color}">
+      <div class="social-cap-row">
+        <span class="social-cap-dot" style="background:${color}"></span>
+        <div class="cap" style="margin:0">${label}</div>
+      </div>
       <div class="kpis">
         <div class="kpi">
           <div class="v">${isTiktok ? '—' : fmtNum(c.followers)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Seguidores (em breve)' : 'Seguidores'}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Seguidores (indisponível nesta rede)' : 'Seguidores'}</div>
         </div>
         <div class="kpi">
           <div class="v">${isTiktok ? '—' : fmtNum(c.reach)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (em breve)' : 'Alcance (30 dias)'}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : 'Alcance (30 dias)'}</div>
         </div>
         <div class="kpi">
-          <div class="v">${c.engagement ? fmtNum(c.engagement) : '—'}</div>
-          <div class="l muted">${c.engagement ? 'Engajamento' : 'Engajamento (em breve)'}</div>
+          <div class="v">${engagement ? fmtNum(engagement) : '—'}</div>
+          <div class="l ${engagement ? '' : 'muted'}">${engagement ? 'Engajamento (curtidas + comentários + compart.)' : (isTiktok ? 'Engajamento (indisponível nesta rede)' : 'Engajamento')}</div>
         </div>
       </div>
       ${c.channel === 'instagram_business' && followersHistory.length ? `
