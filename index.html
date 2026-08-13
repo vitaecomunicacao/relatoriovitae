@@ -332,15 +332,16 @@ function renderPeriodBar() {
   `;
 
   document.querySelectorAll('[data-preset]').forEach(btn => {
-    btn.onclick = () => { periodPreset = btn.dataset.preset; periodStart = null; periodEnd = null; renderPeriodBar(); renderContent(); };
+    btn.onclick = () => { renderToken++; periodPreset = btn.dataset.preset; periodStart = null; periodEnd = null; renderPeriodBar(); renderContent(); };
   });
   document.querySelectorAll('.pb-gran [data-gran]').forEach(btn => {
-    btn.onclick = () => { periodGranularity = btn.dataset.gran; renderPeriodBar(); renderContent(); };
+    btn.onclick = () => { renderToken++; periodGranularity = btn.dataset.gran; renderPeriodBar(); renderContent(); };
   });
   document.getElementById('pbApply').onclick = () => {
     const s = document.getElementById('pbStart').value;
     const e = document.getElementById('pbEnd').value;
     if (!s || !e) return;
+    renderToken++;
     periodPreset = 'custom'; periodStart = s; periodEnd = e;
     renderPeriodBar(); renderContent();
   };
@@ -767,6 +768,7 @@ function mockComparativoGrupo() {
 }
 
 let currentProfile = null; // perfil (com role) do usuário logado
+let renderToken = 0; // incrementa a cada navegação — invalida respostas assíncronas antigas
 
 function showLoginError(id, msg) {
   const el = document.getElementById(id);
@@ -850,7 +852,7 @@ async function enterApp() {
   const adminLink = document.getElementById('tbAdminLink');
   if (currentProfile?.role === 'admin') {
     adminLink.style.display = 'inline';
-    adminLink.onclick = () => { activeTab = 'admin'; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
+    adminLink.onclick = () => { renderToken++; activeTab = 'admin'; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
   } else {
     adminLink.style.display = 'none';
   }
@@ -881,7 +883,7 @@ function renderCompanyRail() {
     pill.className = 'company-pill' + (c.id === activeCompany ? ' active' : '');
     pill.innerHTML = `<span class="dot" style="background:${c.dot}"></span>${c.name}` +
       (c.rd ? '<span class="rd-badge">RD</span>' : '');
-    pill.onclick = () => { activeCompany = c.id; if (activeTab === 'rd' && !c.rd) activeTab = 'analytics'; boot(); };
+    pill.onclick = () => { renderToken++; activeCompany = c.id; if (activeTab === 'rd' && !c.rd) activeTab = 'analytics'; boot(); };
     rail.appendChild(pill);
   });
 }
@@ -894,7 +896,7 @@ function renderMainTabs() {
     const btn = document.createElement('button');
     btn.className = 'tab' + (t.id === activeTab ? ' active' : '');
     btn.textContent = t.label;
-    btn.onclick = () => { activeTab = t.id; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
+    btn.onclick = () => { renderToken++; activeTab = t.id; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
     wrap.appendChild(btn);
   });
 }
@@ -909,7 +911,7 @@ function renderSubnav() {
     const btn = document.createElement('button');
     btn.className = 'stab' + (s.id === activeSection ? ' active' : '');
     btn.textContent = s.id + ' · ' + s.label;
-    btn.onclick = () => { activeSection = s.id; renderSubnav(); renderContent(); };
+    btn.onclick = () => { renderToken++; activeSection = s.id; renderSubnav(); renderContent(); };
     wrap.appendChild(btn);
   });
 }
@@ -959,9 +961,11 @@ function destroyCharts() { chartInstances.forEach(c => c.destroy()); chartInstan
 
 async function renderResumo() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchGA4Real(activeCompany) : mockGA4(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Resumo geral', 'Ainda sem dados de GA4 sincronizados para esta empresa.', []); return; }
   const status = d.deltaPct > 5 ? 'bom' : d.deltaPct > -5 ? 'atencao' : 'critico';
   const statusLabel = { bom:'Bom', atencao:'Atenção', critico:'Crítico' }[status];
@@ -997,9 +1001,11 @@ async function renderResumo() {
 
 async function renderAcessos() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchGA4Real(activeCompany) : mockGA4(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Acessos ao site', 'Ainda sem dados de GA4 sincronizados para esta empresa.', []); return; }
   const sessionsSeries = isReal ? d.sessionsSeries : d.usersSeries.map(v => Math.round(v * 1.25));
   document.getElementById('content').innerHTML = `
@@ -1049,9 +1055,11 @@ async function renderAcessos() {
 
 async function renderEngajamento() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchEngajamentoReal(activeCompany) : mockEngajamento(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Engajamento', 'Ainda sem dados de GA4 sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
     ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
@@ -1075,9 +1083,11 @@ async function renderEngajamento() {
 let contentSort = 'pageviews';
 async function renderConteudo() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const pages = isReal ? await fetchConteudoReal(activeCompany) : mockConteudo(activeCompany);
+  if (myToken !== renderToken) return;
   if (!pages || !pages.length) { document.getElementById('content').innerHTML = stubPanel('Conteúdo', 'Ainda sem dados de páginas sincronizados para esta empresa.', []); return; }
 
   const sorters = {
@@ -1115,7 +1125,7 @@ async function renderConteudo() {
     </div>
   `;
   document.querySelectorAll('[data-sort]').forEach(btn => {
-    btn.onclick = () => { contentSort = btn.dataset.sort; renderConteudo(); };
+    btn.onclick = () => { renderToken++; contentSort = btn.dataset.sort; renderConteudo(); };
   });
   chartInstances.push(new Chart(document.getElementById('chPagesBar'), {
     type:'bar',
@@ -1126,9 +1136,11 @@ async function renderConteudo() {
 
 async function renderOrigem() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchOrigemReal(activeCompany) : mockOrigem(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Origem dos acessos', 'Ainda sem dados sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
     ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
@@ -1167,9 +1179,11 @@ async function renderOrigem() {
 
 async function renderSEO() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GSC_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchSEOReal(activeCompany) : mockGSC(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('SEO', 'Ainda sem dados de Search Console sincronizados para esta empresa.', []); return; }
   document.getElementById('content').innerHTML = `
     ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — Search Console ainda não conectado para esta empresa</div>` : ''}
@@ -1221,9 +1235,11 @@ async function renderSEO() {
 
 async function renderGEO() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const realTraffic = isReal ? await fetchGeoTrafficReal(activeCompany) : null;
+  if (myToken !== renderToken) return;
   const d = isReal ? (realTraffic || []) : mockGEO(activeCompany);
 
   document.getElementById('content').innerHTML = `
@@ -1246,9 +1262,11 @@ async function renderGEO() {
 
 async function renderPerformance() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const isReal = GA4_REAL_COMPANIES.has(activeCompany);
   const d = isReal ? await fetchPerformanceReal(activeCompany) : mockPerformance(activeCompany);
+  if (myToken !== renderToken) return;
   if (!d) { document.getElementById('content').innerHTML = stubPanel('Performance técnica', 'Ainda sem dados de Core Web Vitals para esta empresa.', []); return; }
 
   const sLcp = vitalStatus('lcp', d.lcp), sCls = vitalStatus('cls', d.cls);
@@ -1292,8 +1310,10 @@ async function renderPerformance() {
 
 async function renderComparativoGrupo() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const rows = await fetchComparativoGrupoReal();
+  if (myToken !== renderToken) return;
   const best = rows[0], worst = [...rows].sort((a,b)=>a.deltaPct-b.deltaPct)[0];
   document.getElementById('content').innerHTML = `
     <div class="grid grid-2" style="margin-bottom:16px">
@@ -1353,6 +1373,7 @@ function renderAlertas() {
    ADMIN — usuários, convites e log de auditoria
    ════════════════════════════════════════════════════ */
 async function renderAdmin() {
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
 
   const [usersResp, invitesResp, logResp] = await Promise.all([
@@ -1360,6 +1381,7 @@ async function renderAdmin() {
     sb.from('invite_codes').select('*').order('created_at', { ascending: false }).limit(30),
     sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(50),
   ]);
+  if (myToken !== renderToken) return;
 
   const users = usersResp.data || [];
   const invites = invitesResp.data || [];
@@ -1485,6 +1507,7 @@ const CHANNEL_COLORS = {
 
 async function renderSocial() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
 
   const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
@@ -1509,6 +1532,7 @@ async function renderSocial() {
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
       .order('followers', { ascending: false }).limit(8),
   ]);
+  if (myToken !== renderToken) return;
 
   if (metricsResp.error) {
     document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados: ${metricsResp.error.message}</div>`;
@@ -1650,6 +1674,7 @@ function isoMonday(dateStr) {
 
 async function renderRD() {
   destroyCharts();
+  const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados do RD Station…</div>`;
 
   const [leadsResp, eventsResp] = await Promise.all([
@@ -1659,6 +1684,7 @@ async function renderRD() {
       .eq('company_id', activeCompany).eq('event_type', 'WEBHOOK.CONVERTED')
       .not('conversion_identifier', 'is', null),
   ]);
+  if (myToken !== renderToken) return;
 
   if (leadsResp.error || eventsResp.error) {
     document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados: ${(leadsResp.error || eventsResp.error).message}</div>`;
@@ -1716,7 +1742,7 @@ async function renderRD() {
   `;
 
   document.querySelectorAll('[data-gran]').forEach(btn => {
-    btn.onclick = () => { rdGranularity = btn.dataset.gran; renderRD(); };
+    btn.onclick = () => { renderToken++; rdGranularity = btn.dataset.gran; renderRD(); };
   });
 
   const buckets = {};
