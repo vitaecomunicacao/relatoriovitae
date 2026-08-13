@@ -49,19 +49,24 @@ button, input, select { font-family: var(--font); }
 .tb-user { font-size: 12.5px; color: var(--ink-3); }
 .tb-admin-link { font-size: 12.5px; font-weight: 600; color: var(--navy); background: none; border: none; cursor: pointer; padding: 0; }
 .tb-admin-link:hover { text-decoration: underline; }
-.company-rail { display: flex; gap: 8px; overflow-x: auto; padding: 14px 32px; border-bottom: 1px solid var(--line); background: var(--wash); }
-.company-pill { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 20px; background: #fff; border: 1px solid var(--line); font-size: 12.5px; font-weight: 500; color: var(--ink-2); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
-.company-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.company-pill.active { border-color: var(--ink); color: var(--ink); font-weight: 600; }
-.company-pill .rd-badge { font-size: 9.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
-.tabs-wrap { position: sticky; top: 60px; z-index: 190; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
-.tabs { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 24px; overflow-x: auto; }
-.tab { padding: 14px 0 12px; font-size: 13.5px; font-weight: 500; color: var(--ink-3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
-.tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--navy); }
-.subnav-wrap { position: sticky; top: 105px; z-index: 180; background: var(--wash); border-bottom: 1px solid var(--line); }
-.subnav { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 8px; overflow-x: auto; }
-.stab { padding: 10px 12px; font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: none; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
-.stab.active { color: var(--navy); background: #fff; }
+.app-body { display: flex; max-width: 1360px; margin: 0 auto; align-items: flex-start; }
+.sidebar { width: 220px; flex-shrink: 0; padding: 24px 14px; position: sticky; top: 60px; }
+.sidebar-title { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); padding: 4px 10px 12px; }
+.sidebar-list { display: flex; flex-direction: column; gap: 2px; }
+.sidebar-btn { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 8px; border: none; background: transparent; font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; text-align: left; width: 100%; transition: background .15s, color .15s; }
+.sidebar-btn:hover { background: var(--line-2); }
+.sidebar-btn.active { background: #fff; box-shadow: 0 0 0 1px var(--line); color: var(--ink); font-weight: 600; }
+.sidebar-btn .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sidebar-btn .rd-badge { margin-left: auto; font-size: 9px; font-weight: 700; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+.main-area { flex: 1; min-width: 0; border-left: 1px solid var(--line); padding: 24px 32px 40px; }
+.main-area-head { margin-bottom: 18px; }
+.tab-segment { display: inline-flex; gap: 4px; background: var(--wash); border-radius: 10px; padding: 4px; }
+.tab-seg-btn { padding: 9px 16px; font-size: 13px; font-weight: 600; color: var(--ink-2); background: none; border: none; border-radius: 7px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+.tab-seg-btn.active { background: var(--navy); color: #fff; }
+.subnav-wrap { margin-bottom: 4px; }
+.subnav { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.stab { padding: 8px 12px; font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: var(--wash); border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.stab.active { color: #fff; background: var(--navy); }
 .role-badge { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; }
 .role-badge.admin { background: #fdf3e3; color: var(--amb); }
 .role-badge.member { background: var(--line-2); color: var(--ink-2); }
@@ -76,7 +81,7 @@ button, input, select { font-family: var(--font); }
 .admin-btn.secondary { background: none; color: var(--ink-2); border: 1px solid var(--line); }
 .admin-btn.danger { background: none; color: var(--dn); border: 1px solid var(--line); }
 .code-chip { font-family: monospace; font-size: 13px; font-weight: 700; background: var(--wash); padding: 3px 8px; border-radius: 5px; }
-.content { max-width: 1128px; margin: 0 auto; padding: 32px; }
+.content { padding: 0; }
 .grid { display: grid; gap: 16px; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -120,9 +125,9 @@ table.rank tr:last-child td { border-bottom: none; }
 .alert-title { font-size: 13.5px; font-weight: 600; }
 .alert-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
 .chart-box { height: 260px; }
-.periodbar-wrap { display: none; background: #fff; border-bottom: 1px solid var(--line); }
+.periodbar-wrap { display: none; background: var(--wash); border-radius: 10px; margin-bottom: 16px; }
 .periodbar-wrap.show { display: block; }
-.periodbar { max-width: 1128px; margin: 0 auto; padding: 12px 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.periodbar { padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pb-presets { display: flex; gap: 6px; }
 .pb-btn { padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--wash); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; white-space: nowrap; }
 .pb-btn.active { color: #fff; background: var(--navy); border-color: var(--navy); }
@@ -234,11 +239,20 @@ table.rank tr:last-child td { border-bottom: none; }
       <button class="tb-logout" id="logoutBtn">Sair</button>
     </div>
   </div>
-  <div class="company-rail" id="companyRail"></div>
-  <div class="tabs-wrap"><div class="tabs" id="mainTabs"></div></div>
-  <div class="subnav-wrap" id="subnavWrap"><div class="subnav" id="subnav"></div></div>
-  <div class="periodbar-wrap" id="periodBarWrap"><div class="periodbar" id="periodBar"></div></div>
-  <div class="content" id="content"></div>
+  <div class="app-body">
+    <aside class="sidebar">
+      <div class="sidebar-title">Empresas</div>
+      <div class="sidebar-list" id="companyRail"></div>
+    </aside>
+    <main class="main-area">
+      <div class="main-area-head">
+        <div class="tab-segment" id="mainTabs"></div>
+      </div>
+      <div class="subnav-wrap" id="subnavWrap"><div class="subnav" id="subnav"></div></div>
+      <div class="periodbar-wrap" id="periodBarWrap"><div class="periodbar" id="periodBar"></div></div>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
 </div>
 
 <script>
@@ -880,7 +894,7 @@ function renderCompanyRail() {
   rail.innerHTML = '';
   COMPANIES.forEach(c => {
     const pill = document.createElement('button');
-    pill.className = 'company-pill' + (c.id === activeCompany ? ' active' : '');
+    pill.className = 'sidebar-btn' + (c.id === activeCompany ? ' active' : '');
     pill.innerHTML = `<span class="dot" style="background:${c.dot}"></span>${c.name}` +
       (c.rd ? '<span class="rd-badge">RD</span>' : '');
     pill.onclick = () => { renderToken++; activeCompany = c.id; if (activeTab === 'rd' && !c.rd) activeTab = 'analytics'; boot(); };
@@ -894,7 +908,7 @@ function renderMainTabs() {
   wrap.innerHTML = '';
   MAIN_TABS.filter(t => !t.rdOnly || company.rd).forEach(t => {
     const btn = document.createElement('button');
-    btn.className = 'tab' + (t.id === activeTab ? ' active' : '');
+    btn.className = 'tab-seg-btn' + (t.id === activeTab ? ' active' : '');
     btn.textContent = t.label;
     btn.onclick = () => { renderToken++; activeTab = t.id; renderMainTabs(); renderSubnav(); renderPeriodBar(); renderContent(); };
     wrap.appendChild(btn);
