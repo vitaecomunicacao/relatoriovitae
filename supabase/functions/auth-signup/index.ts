@@ -8,6 +8,7 @@
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (automáticos)
 // verify_jwt = false (quem chama ainda não tem conta/sessão)
 
+
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
