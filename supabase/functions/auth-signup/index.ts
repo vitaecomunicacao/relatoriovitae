@@ -8,27 +8,42 @@
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (automáticos)
 // verify_jwt = false (quem chama ainda não tem conta/sessão)
 
-
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   let body: any;
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: "Corpo da requisição inválido." }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Corpo da requisição inválido." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const { email, password, inviteCode } = body;
   if (!email || !password || !inviteCode) {
-    return new Response(JSON.stringify({ error: "Preencha e-mail, senha e código de convite." }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Preencha e-mail, senha e código de convite." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
   if (password.length < 8) {
-    return new Response(JSON.stringify({ error: "A senha precisa ter pelo menos 8 caracteres." }), { status: 400 });
+    return new Response(JSON.stringify({ error: "A senha precisa ter pelo menos 8 caracteres." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const { data: invite, error: inviteErr } = await supabase
@@ -40,14 +55,18 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (inviteErr || !invite) {
-    return new Response(JSON.stringify({ error: "Código de convite inválido ou já utilizado." }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Código de convite inválido ou já utilizado." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email, password, email_confirm: true,
   });
   if (createErr || !created.user) {
-    return new Response(JSON.stringify({ error: createErr?.message || "Erro ao criar usuário." }), { status: 400 });
+    return new Response(JSON.stringify({ error: createErr?.message || "Erro ao criar usuário." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   await supabase.from("profiles").insert({
@@ -64,6 +83,6 @@ Deno.serve(async (req) => {
   });
 
   return new Response(JSON.stringify({ ok: true }), {
-    status: 200, headers: { "Content-Type": "application/json" },
+    status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
