@@ -5,6 +5,7 @@
 //
 // verify_jwt = true (padrão — precisa estar logado)
 
+
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCaller } from "../_shared/get-caller.ts";
 
