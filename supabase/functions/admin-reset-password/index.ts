@@ -1,12 +1,11 @@
 // Supabase Edge Function: admin-reset-password
 //
 // Só admins podem chamar. Redefine a senha de outro usuário e registra
-// a ação em audit_log (sem guardar a senha nova em nenhum lugar).
+// a ação em audit_log.
 //
 // verify_jwt = true (padrão — precisa estar logado)
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { getCaller } from "../_shared/get-caller.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -18,12 +17,22 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+async function getCaller(req: Request) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const jwt = authHeader.replace("Bearer ", "");
+  if (!jwt) return null;
+  const { data, error } = await supabase.auth.getUser(jwt);
+  if (error || !data.user) return null;
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
+  return profile ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const caller = await getCaller(req, supabase);
+  const caller = await getCaller(req);
   if (!caller || caller.role !== "admin") {
     return new Response(JSON.stringify({ error: "Acesso restrito a administradores." }), {
       status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
