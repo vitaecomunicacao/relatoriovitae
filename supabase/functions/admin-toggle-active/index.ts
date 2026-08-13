@@ -5,7 +5,6 @@
 //
 // verify_jwt = true (padrão — precisa estar logado)
 
-
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCaller } from "../_shared/get-caller.ts";
 
@@ -13,19 +12,37 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   const caller = await getCaller(req, supabase);
   if (!caller || caller.role !== "admin") {
-    return new Response(JSON.stringify({ error: "Acesso restrito a administradores." }), { status: 403 });
+    return new Response(JSON.stringify({ error: "Acesso restrito a administradores." }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const { userId, isActive } = await req.json().catch(() => ({}));
   if (!userId || typeof isActive !== "boolean") {
-    return new Response(JSON.stringify({ error: "Parâmetros inválidos." }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Parâmetros inválidos." }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const { error } = await supabase.from("profiles").update({ is_active: isActive }).eq("id", userId);
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: target } = await supabase.from("profiles").select("email").eq("id", userId).single();
 
@@ -36,6 +53,6 @@ Deno.serve(async (req) => {
   });
 
   return new Response(JSON.stringify({ ok: true }), {
-    status: 200, headers: { "Content-Type": "application/json" },
+    status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
