@@ -5,6 +5,7 @@
 //
 // verify_jwt = true (padrão — precisa estar logado)
 
+
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
