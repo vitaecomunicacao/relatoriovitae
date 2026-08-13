@@ -220,9 +220,8 @@ const ANALYTICS_SECTIONS = [
   { id:'07', label:'SEO' },
   { id:'08', label:'GEO (IA generativa)' },
   { id:'09', label:'Performance técnica' },
-  { id:'10', label:'Benchmark concorrentes' },
-  { id:'11', label:'Comparativo do grupo' },
-  { id:'12', label:'Alertas' },
+  { id:'10', label:'Comparativo do grupo' },
+  { id:'11', label:'Alertas' },
 ];
 
 let activeCompany = 'faz';
@@ -703,17 +702,6 @@ function vitalStatus(metric, value) {
   return { label:'Crítico', color:'#d64545' };
 }
 
-function mockBenchmark(companyId) {
-  const r = seed(companyId + 'bench');
-  const dims = ['Tráfego estimado','Keywords em comum','Presença em IA','Autoridade de domínio'];
-  const own = dims.map(() => Math.round(40 + r()*50));
-  const competitors = [
-    { name:'Concorrente A', values: dims.map(() => Math.round(20 + r()*70)), color:'#c98a1e' },
-    { name:'Concorrente B', values: dims.map(() => Math.round(20 + r()*70)), color:'#7B3FA0' },
-  ];
-  return { dims, own, competitors };
-}
-
 function mockComparativoGrupo() {
   return COMPANIES.map(c => {
     const g = mockGA4(c.id);
@@ -812,8 +800,8 @@ function renderContent() {
   const renderers = {
     '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
     '04': renderConteudo, '06': renderOrigem, '07': renderSEO,
-    '08': renderGEO, '09': renderPerformance, '10': renderBenchmark,
-    '11': renderComparativoGrupo, '12': renderAlertas,
+    '08': renderGEO, '09': renderPerformance,
+    '10': renderComparativoGrupo, '11': renderAlertas,
   };
   (renderers[activeSection] || (() => {}))();
 }
@@ -1115,23 +1103,12 @@ async function renderGEO() {
   const d = isReal ? (realTraffic || []) : mockGEO(activeCompany);
 
   document.getElementById('content').innerHTML = `
-    ${isReal ? `<div class="stub-tag" style="margin-bottom:12px">Tráfego por IA é real (detectado pela origem da sessão no GA4). Taxa de citação ainda não tem fonte de dados conectada.</div>` : ''}
+    ${isReal ? `<div class="stub-tag" style="margin-bottom:12px">Detectado pela origem da sessão no GA4 (heurística por domínio de referência)</div>` : ''}
     ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — GA4 ainda não conectado para esta empresa</div>` : ''}
-    <div class="grid grid-2" style="gap:16px">
-      <div class="card">
-        <div class="section-title">Taxa de citação por plataforma de IA</div>
-        <div class="section-sub">${isReal ? 'Ainda sem fonte de dados conectada para esta métrica' : '% das consultas relevantes em que a marca aparece citada'}</div>
-        ${isReal ? '' : d.map(p => `<div class="geo-row">
-          <div class="geo-name">${p.platform}</div>
-          <div class="geo-bar-track"><div class="geo-bar-fill" style="width:${p.citationRate}%; background:${p.color}"></div></div>
-          <div class="geo-pct">${p.citationRate}%</div>
-        </div>`).join('')}
-      </div>
-      <div class="card">
-        <div class="section-title">Tráfego de referência por IA</div>
-        ${isReal && !d.length ? `<div class="section-sub">Nenhuma sessão originada de IA generativa detectada no período.</div>` : ''}
-        ${!isReal || d.length ? `<div class="chart-box"><canvas id="chGeoBar"></canvas></div>` : ''}
-      </div>
+    <div class="card">
+      <div class="section-title">Tráfego de referência por IA</div>
+      ${isReal && !d.length ? `<div class="section-sub">Nenhuma sessão originada de IA generativa detectada no período.</div>` : ''}
+      ${!isReal || d.length ? `<div class="chart-box"><canvas id="chGeoBar"></canvas></div>` : ''}
     </div>
   `;
   if (!isReal || d.length) {
@@ -1177,69 +1154,15 @@ async function renderPerformance() {
         ${gauge('INP', d.inp, 'ms', sInp)}
       </div>
     </div>
-    <div class="grid grid-2" style="margin-bottom:16px">
-      <div class="card">
-        <div class="section-title">Mobile vs. desktop (LCP)</div>
-        <div class="chart-box"><canvas id="chMobDesk"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="kpi-label">Uptime do site</div>
-        ${isReal
-          ? `<div class="section-sub" style="margin-top:10px">Ainda sem fonte de dados conectada para uptime.</div>`
-          : `<div class="kpi-value">${d.uptime}%</div><div class="section-sub" style="margin-top:10px">no período analisado</div>`}
-      </div>
-    </div>
     <div class="card">
-      <div class="section-title">Páginas com erro</div>
-      ${isReal
-        ? `<div class="section-sub">Ainda sem fonte de dados conectada para erros de página.</div>`
-        : `<table class="rank">
-            <thead><tr><th>Página</th><th>Código</th><th>Ocorrências</th></tr></thead>
-            <tbody>
-              ${d.errors.map(e => `<tr><td>${e.path}</td><td>${e.code}</td><td>${e.hits}</td></tr>`).join('')}
-            </tbody>
-          </table>`}
+      <div class="section-title">Mobile vs. desktop (LCP)</div>
+      <div class="chart-box"><canvas id="chMobDesk"></canvas></div>
     </div>
   `;
   chartInstances.push(new Chart(document.getElementById('chMobDesk'), {
     type:'bar',
     data:{ labels:['Mobile','Desktop'], datasets:[{ data:[d.mobileLcp, d.desktopLcp], backgroundColor:['#1DB3E8','#005caa'] }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
-  }));
-}
-
-function renderBenchmark() {
-  destroyCharts();
-  const d = mockBenchmark(activeCompany);
-  const company = COMPANIES.find(c => c.id === activeCompany);
-  document.getElementById('content').innerHTML = `
-    <div class="card" style="margin-bottom:16px">
-      <span class="stub-tag">Dado estimado (SimilarWeb / SEMrush)</span>
-      <div class="section-title">Comparativo com concorrentes</div>
-      <div class="chart-box" style="height:320px"><canvas id="chRadar"></canvas></div>
-    </div>
-    <div class="card">
-      <table class="rank">
-        <thead><tr><th>Dimensão</th><th>${company.name}</th>${d.competitors.map(c=>`<th>${c.name}</th>`).join('')}</tr></thead>
-        <tbody>
-          ${d.dims.map((dim,i) => `<tr>
-            <td>${dim}</td><td>${d.own[i]}</td>
-            ${d.competitors.map(c=>`<td>${c.values[i]}</td>`).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  chartInstances.push(new Chart(document.getElementById('chRadar'), {
-    type:'radar',
-    data:{
-      labels: d.dims,
-      datasets:[
-        { label: company.name, data: d.own, borderColor:'#005caa', backgroundColor:'rgba(0,92,170,.12)' },
-        ...d.competitors.map(c => ({ label:c.name, data:c.values, borderColor:c.color, backgroundColor:'transparent' })),
-      ]
-    },
-    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, scales:{ r:{ grid:{color:'#f3f4f6'}, ticks:{display:false} } } }
   }));
 }
 
