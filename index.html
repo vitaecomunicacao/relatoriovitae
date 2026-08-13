@@ -338,7 +338,7 @@ function seed(str) {
 }
 
 // Empresas com GA4 já conectado de verdade (as demais seguem em mock)
-const GA4_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae', 'albert']);
+const GA4_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae', 'albert', 'namura']);
 
 async function fetchGA4Real(companyId) {
   const { start, end } = computePeriodRange();
@@ -503,7 +503,7 @@ async function fetchOrigemReal(companyId) {
 }
 
 // Empresas com Search Console já conectado de verdade
-const GSC_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae', 'albert']);
+const GSC_REAL_COMPANIES = new Set(['faz', 'planneta', 'solum', 'vitae', 'albert', 'namura']);
 
 async function fetchPerformanceReal(companyId) {
   const { data, error } = await sb
