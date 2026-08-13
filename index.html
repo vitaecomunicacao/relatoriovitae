@@ -34,6 +34,9 @@ button, input, select { font-family: var(--font); }
 .login-btn:hover { opacity: .92; }
 .login-note { font-size: 11.5px; color: var(--ink-3); margin-top: 16px; line-height: 1.5; }
 .login-error { font-size: 12.5px; color: var(--dn); margin-top: 10px; display: none; }
+.login-error.show { display: block; }
+.login-link { color: var(--navy); font-weight: 600; text-decoration: none; }
+.login-link:hover { text-decoration: underline; }
 #view-app { display: none; }
 #view-app.show { display: block; }
 .topbar { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; position: sticky; top: 0; z-index: 200; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
@@ -55,6 +58,20 @@ button, input, select { font-family: var(--font); }
 .subnav { max-width: 1128px; margin: 0 auto; padding: 0 32px; display: flex; gap: 8px; overflow-x: auto; }
 .stab { padding: 10px 12px; font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: none; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .stab.active { color: var(--navy); background: #fff; }
+.role-badge { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; }
+.role-badge.admin { background: #fdf3e3; color: var(--amb); }
+.role-badge.member { background: var(--line-2); color: var(--ink-2); }
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+.status-dot.active { background: var(--up); }
+.status-dot.inactive { background: var(--dn); }
+.admin-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.admin-inline-form select, .admin-inline-form input {
+  font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--wash);
+}
+.admin-btn { padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: #fff; background: var(--navy); border: none; border-radius: 7px; cursor: pointer; }
+.admin-btn.secondary { background: none; color: var(--ink-2); border: 1px solid var(--line); }
+.admin-btn.danger { background: none; color: var(--dn); border: 1px solid var(--line); }
+.code-chip { font-family: monospace; font-size: 13px; font-weight: 700; background: var(--wash); padding: 3px 8px; border-radius: 5px; }
 .content { max-width: 1128px; margin: 0 auto; padding: 32px; }
 .grid { display: grid; gap: 16px; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
@@ -155,24 +172,49 @@ table.rank tr:last-child td { border-bottom: none; }
 <div id="view-login">
   <div class="login-card">
     <div class="login-mark">VITAE BRASIL <span>· analytics</span></div>
-    <div class="login-title">Entrar</div>
-    <div class="login-sub">Acesso restrito ao time de marketing e comunicação.</div>
-    <form id="loginForm">
-      <div class="login-field">
-        <label for="loginEmail">E-mail</label>
-        <input id="loginEmail" type="email" required placeholder="voce@grupovitaebrasil.com.br">
+
+    <div id="loginMode">
+      <div class="login-title">Entrar</div>
+      <div class="login-sub">Acesso restrito ao time de marketing e comunicação.</div>
+      <form id="loginForm">
+        <div class="login-field">
+          <label for="loginEmail">E-mail</label>
+          <input id="loginEmail" type="email" required placeholder="voce@grupovitaebrasil.com.br">
+        </div>
+        <div class="login-field">
+          <label for="loginPass">Senha</label>
+          <input id="loginPass" type="password" required placeholder="••••••••">
+        </div>
+        <button class="login-btn" type="submit">Entrar</button>
+        <div class="login-error" id="loginError"></div>
+      </form>
+      <div class="login-note">
+        Não tem conta? <a href="#" id="goToSignup" class="login-link">Cadastre-se com um código de convite</a>.
       </div>
-      <div class="login-field">
-        <label for="loginPass">Senha</label>
-        <input id="loginPass" type="password" required placeholder="••••••••">
+    </div>
+
+    <div id="signupMode" style="display:none">
+      <div class="login-title">Criar conta</div>
+      <div class="login-sub">Precisa de um código de convite gerado por um admin.</div>
+      <form id="signupForm">
+        <div class="login-field">
+          <label for="signupCode">Código de convite</label>
+          <input id="signupCode" type="text" required placeholder="ex: A1B2C3D4" style="text-transform:uppercase">
+        </div>
+        <div class="login-field">
+          <label for="signupEmail">E-mail</label>
+          <input id="signupEmail" type="email" required placeholder="voce@grupovitaebrasil.com.br">
+        </div>
+        <div class="login-field">
+          <label for="signupPass">Senha</label>
+          <input id="signupPass" type="password" required minlength="8" placeholder="mínimo 8 caracteres">
+        </div>
+        <button class="login-btn" type="submit">Criar conta</button>
+        <div class="login-error" id="signupError"></div>
+      </form>
+      <div class="login-note">
+        Já tem conta? <a href="#" id="goToLogin" class="login-link">Entrar</a>.
       </div>
-      <button class="login-btn" type="submit">Entrar</button>
-      <div class="login-error" id="loginError">E-mail ou senha inválidos.</div>
-    </form>
-    <div class="login-note">
-      Login provisório (front-end only) enquanto a autenticação via Supabase
-      Auth não é conectada. Qualquer e-mail/senha preenchidos entram por
-      enquanto — isso será substituído por auth real na etapa de backend.
     </div>
   </div>
 </div>
@@ -209,6 +251,7 @@ const MAIN_TABS = [
   { id:'analytics', label:'Analytics & SEO' },
   { id:'social',     label:'Redes sociais' },
   { id:'rd',          label:'RD Station', rdOnly:true },
+  { id:'admin',       label:'Admin', adminOnly:true },
 ];
 
 const ANALYTICS_SECTIONS = [
@@ -716,31 +759,95 @@ function mockComparativoGrupo() {
   }).sort((a,b) => b.sessions - a.sessions);
 }
 
-document.getElementById('loginForm').addEventListener('submit', (e) => {
+let currentProfile = null; // perfil (com role) do usuário logado
+
+function showLoginError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideLoginErrors() {
+  document.querySelectorAll('.login-error').forEach(el => { el.classList.remove('show'); el.textContent = ''; });
+}
+
+document.getElementById('goToSignup').onclick = (e) => {
+  e.preventDefault(); hideLoginErrors();
+  document.getElementById('loginMode').style.display = 'none';
+  document.getElementById('signupMode').style.display = 'block';
+};
+document.getElementById('goToLogin').onclick = (e) => {
+  e.preventDefault(); hideLoginErrors();
+  document.getElementById('signupMode').style.display = 'none';
+  document.getElementById('loginMode').style.display = 'block';
+};
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  hideLoginErrors();
   const email = document.getElementById('loginEmail').value.trim();
-  const pass = document.getElementById('loginPass').value.trim();
-  if (!email || !pass) {
-    document.getElementById('loginError').style.display = 'block';
+  const password = document.getElementById('loginPass').value;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error || !data.session) {
+    showLoginError('loginError', 'E-mail ou senha inválidos.');
     return;
   }
-  sessionStorage.setItem('vitae_logged_in', '1');
-  document.getElementById('view-login').classList.add('hide');
-  document.getElementById('view-app').classList.add('show');
-  boot();
+  await enterApp();
 });
 
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  sessionStorage.removeItem('vitae_logged_in');
+document.getElementById('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideLoginErrors();
+  const inviteCode = document.getElementById('signupCode').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPass').value;
+
+  const { data, error } = await sb.functions.invoke('auth-signup', {
+    body: { email, password, inviteCode },
+  });
+  if (error || data?.error) {
+    showLoginError('signupError', data?.error || 'Não foi possível criar a conta.');
+    return;
+  }
+
+  const { error: loginErr } = await sb.auth.signInWithPassword({ email, password });
+  if (loginErr) {
+    showLoginError('signupError', 'Conta criada — faça login normalmente.');
+    document.getElementById('signupMode').style.display = 'none';
+    document.getElementById('loginMode').style.display = 'block';
+    return;
+  }
+  await enterApp();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  currentProfile = null;
   document.getElementById('view-app').classList.remove('show');
   document.getElementById('view-login').classList.remove('hide');
 });
 
-if (sessionStorage.getItem('vitae_logged_in') === '1') {
+async function enterApp() {
+  const { data: userData } = await sb.auth.getUser();
+  if (!userData?.user) return;
+
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', userData.user.id).single();
+  if (profile && profile.is_active === false) {
+    await sb.auth.signOut();
+    showLoginError('loginError', 'Esta conta foi desativada. Fale com um administrador.');
+    return;
+  }
+  currentProfile = profile || null;
+
   document.getElementById('view-login').classList.add('hide');
   document.getElementById('view-app').classList.add('show');
   boot();
 }
+
+// Restaura sessão já existente (recarregou a página, por exemplo)
+sb.auth.getSession().then(({ data }) => {
+  if (data?.session) enterApp();
+});
 
 function boot() {
   renderCompanyRail();
@@ -767,7 +874,7 @@ function renderMainTabs() {
   const wrap = document.getElementById('mainTabs');
   const company = COMPANIES.find(c => c.id === activeCompany);
   wrap.innerHTML = '';
-  MAIN_TABS.filter(t => !t.rdOnly || company.rd).forEach(t => {
+  MAIN_TABS.filter(t => (!t.rdOnly || company.rd) && (!t.adminOnly || currentProfile?.role === 'admin')).forEach(t => {
     const btn = document.createElement('button');
     btn.className = 'tab' + (t.id === activeTab ? ' active' : '');
     btn.textContent = t.label;
@@ -796,6 +903,7 @@ function renderContent() {
   el.innerHTML = '';
   if (activeTab === 'social') { renderSocial(); return; }
   if (activeTab === 'rd') { renderRD(); return; }
+  if (activeTab === 'admin') { renderAdmin(); return; }
 
   const renderers = {
     '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
@@ -1223,6 +1331,125 @@ function renderAlertas() {
         </div>`).join('')}
     </div>
   `;
+}
+
+/* ════════════════════════════════════════════════════
+   ADMIN — usuários, convites e log de auditoria
+   ════════════════════════════════════════════════════ */
+async function renderAdmin() {
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+
+  const [usersResp, invitesResp, logResp] = await Promise.all([
+    sb.from('profiles').select('*').order('created_at', { ascending: false }),
+    sb.from('invite_codes').select('*').order('created_at', { ascending: false }).limit(30),
+    sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(50),
+  ]);
+
+  const users = usersResp.data || [];
+  const invites = invitesResp.data || [];
+  const log = logResp.data || [];
+
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Gerar código de convite</div>
+      <div class="section-sub">Compartilhe o código com a pessoa — ele só funciona uma vez.</div>
+      <div class="admin-inline-form">
+        <select id="inviteRole">
+          <option value="member">Membro</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="admin-btn" id="genInviteBtn">Gerar convite</button>
+        <span id="inviteResult" style="font-size:13px"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Usuários (${users.length})</div>
+      <table class="rank">
+        <thead><tr><th>E-mail</th><th>Role</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${users.map(u => `<tr>
+            <td>${u.email}</td>
+            <td><span class="role-badge ${u.role}">${u.role}</span></td>
+            <td><span class="status-dot ${u.is_active ? 'active' : 'inactive'}"></span>${u.is_active ? 'Ativo' : 'Desativado'}</td>
+            <td>${new Date(u.created_at).toLocaleDateString('pt-BR')}</td>
+            <td style="display:flex; gap:6px">
+              <button class="admin-btn secondary" data-reset="${u.id}">Redefinir senha</button>
+              <button class="admin-btn ${u.is_active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.is_active}">${u.is_active ? 'Desativar' : 'Ativar'}</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Convites recentes</div>
+      <table class="rank">
+        <thead><tr><th>Código</th><th>Role</th><th>Status</th><th>Criado em</th></tr></thead>
+        <tbody>
+          ${invites.length ? invites.map(i => `<tr>
+            <td><span class="code-chip">${i.code}</span></td>
+            <td><span class="role-badge ${i.role}">${i.role}</span></td>
+            <td>${i.used_by ? 'Usado' : (i.active ? 'Disponível' : 'Inativo')}</td>
+            <td>${new Date(i.created_at).toLocaleDateString('pt-BR')}</td>
+          </tr>`).join('') : '<tr><td colspan="4">Nenhum convite gerado ainda.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Log de auditoria</div>
+      <div class="section-sub">Últimas 50 ações administrativas</div>
+      <table class="rank">
+        <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr></thead>
+        <tbody>
+          ${log.length ? log.map(l => `<tr>
+            <td>${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+            <td>${l.actor_email || '—'}</td>
+            <td>${l.action}</td>
+            <td>${l.target_email || '—'}</td>
+          </tr>`).join('') : '<tr><td colspan="4">Sem ações registradas ainda.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('genInviteBtn').onclick = async () => {
+    const role = document.getElementById('inviteRole').value;
+    const { data, error } = await sb.functions.invoke('admin-generate-invite', { body: { role } });
+    const resultEl = document.getElementById('inviteResult');
+    if (error || data?.error) {
+      resultEl.style.color = 'var(--dn)';
+      resultEl.textContent = data?.error || 'Erro ao gerar convite.';
+      return;
+    }
+    resultEl.style.color = 'var(--up)';
+    resultEl.textContent = `Código gerado: ${data.code}`;
+    renderAdmin();
+  };
+
+  document.querySelectorAll('[data-reset]').forEach(btn => {
+    btn.onclick = async () => {
+      const newPassword = prompt('Nova senha para este usuário (mínimo 8 caracteres):');
+      if (!newPassword) return;
+      const { data, error } = await sb.functions.invoke('admin-reset-password', {
+        body: { userId: btn.dataset.reset, newPassword },
+      });
+      if (error || data?.error) { alert(data?.error || 'Erro ao redefinir senha.'); return; }
+      alert('Senha redefinida com sucesso.');
+    };
+  });
+
+  document.querySelectorAll('[data-toggle]').forEach(btn => {
+    btn.onclick = async () => {
+      const isActive = btn.dataset.active === 'true';
+      const { data, error } = await sb.functions.invoke('admin-toggle-active', {
+        body: { userId: btn.dataset.toggle, isActive: !isActive },
+      });
+      if (error || data?.error) { alert(data?.error || 'Erro ao atualizar usuário.'); return; }
+      renderAdmin();
+    };
+  });
 }
 
 const CHANNEL_LABELS = {
