@@ -1045,6 +1045,13 @@ function truncate(text, max = 60) {
   return text.length > max ? text.slice(0, max) + '…' : text;
 }
 
+function formatSummaryHtml(text) {
+  if (!text) return '';
+  const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const parts = paragraphs.length > 1 ? paragraphs : text.split(/\n/).map(p => p.trim()).filter(Boolean);
+  return parts.map(p => `<p class="summary-text">${p}</p>`).join('');
+}
+
 function kpiCard(label, value, delta) {
   const dir = delta >= 0 ? 'up' : 'dn';
   const sign = delta >= 0 ? '+' : '';
@@ -1432,7 +1439,7 @@ async function renderComparativoGrupo() {
           <button class="admin-btn" id="genSummaryBtn" data-days="7">Gerar resumo</button>
         </div>
       </div>
-      <p class="summary-text" id="summaryText">${summary ? summary.content : 'Nenhum resumo gerado ainda — escolha um período e clique em "Gerar resumo".'}</p>
+      <div id="summaryText">${summary ? formatSummaryHtml(summary.content) : '<p class="summary-text">Nenhum resumo gerado ainda — escolha um período e clique em "Gerar resumo".</p>'}</div>
     </div>
     <div class="grid grid-2" style="margin-bottom:16px">
       ${kpiCard('Maior evolução', best.name, best.deltaPct)}
