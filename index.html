@@ -1415,17 +1415,25 @@ async function renderComparativoGrupo() {
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
   const [rows, summaryResp] = await Promise.all([
     fetchComparativoGrupoReal(),
-    sb.from('ai_weekly_summary').select('content, generated_at').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
+    sb.from('ai_weekly_summary').select('content, generated_at, period_days').order('generated_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (myToken !== renderToken) return;
   const summary = summaryResp.data;
+  const PERIOD_LABELS = { 7: '7 dias', 30: '30 dias', 90: '3 meses' };
   const best = rows[0], worst = [...rows].sort((a,b)=>a.deltaPct-b.deltaPct)[0];
   document.getElementById('content').innerHTML = `
-    ${summary ? `
     <div class="card" style="margin-bottom:16px; border-left: 3px solid var(--navy)">
-      <span class="stub-tag" style="margin-bottom:10px">✦ Gerado por IA · atualizado em ${new Date(summary.generated_at).toLocaleDateString('pt-BR')}</span>
-      <p class="summary-text">${summary.content}</p>
-    </div>` : ''}
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:${summary ? '10px' : '0'}">
+        <span class="stub-tag" style="margin:0">✦ Resumo executivo por IA${summary ? ` · ${PERIOD_LABELS[summary.period_days] || '7 dias'} · atualizado em ${new Date(summary.generated_at).toLocaleDateString('pt-BR')}` : ''}</span>
+        <div style="display:flex; gap:6px; align-items:center">
+          <div style="display:flex; gap:4px">
+            ${[7,30,90].map(d => `<button class="stab" data-gendays="${d}" style="border:1px solid var(--line)">${PERIOD_LABELS[d]}</button>`).join('')}
+          </div>
+          <button class="admin-btn" id="genSummaryBtn" data-days="7">Gerar resumo</button>
+        </div>
+      </div>
+      <p class="summary-text" id="summaryText">${summary ? summary.content : 'Nenhum resumo gerado ainda — escolha um período e clique em "Gerar resumo".'}</p>
+    </div>
     <div class="grid grid-2" style="margin-bottom:16px">
       ${kpiCard('Maior evolução', best.name, best.deltaPct)}
       ${kpiCard('Maior queda', worst.name, worst.deltaPct)}
@@ -1456,6 +1464,30 @@ async function renderComparativoGrupo() {
     data:{ labels: rows.map(r=>r.name), datasets:[{ data: rows.map(r=>r.sessions), backgroundColor: rows.map(r=>r.dot) }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#f3f4f6'} }, x:{ grid:{display:false} } } }
   }));
+
+  document.querySelectorAll('[data-gendays]').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('[data-gendays]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('genSummaryBtn').dataset.days = btn.dataset.gendays;
+    };
+  });
+
+  document.getElementById('genSummaryBtn').onclick = async (e) => {
+    const days = Number(e.target.dataset.days) || 7;
+    const btn = e.target;
+    const textEl = document.getElementById('summaryText');
+    btn.disabled = true;
+    textEl.textContent = 'Gerando resumo…';
+
+    const { data, error } = await sb.functions.invoke('ai-weekly-summary', { body: { days } });
+    btn.disabled = false;
+    if (error || data?.error) {
+      textEl.textContent = data?.error || 'Não foi possível gerar o resumo agora.';
+      return;
+    }
+    renderComparativoGrupo();
+  };
 }
 
 function renderAlertas() {
