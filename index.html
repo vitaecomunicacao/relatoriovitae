@@ -48,20 +48,17 @@ button, input, select { font-family: var(--font); }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
 .tb-user { font-size: 12.5px; color: var(--ink-3); }
 .tb-admin-link { font-size: 12.5px; font-weight: 600; color: var(--navy); background: none; border: none; cursor: pointer; padding: 0; }
-.tb-ask-link { font-size: 12.5px; font-weight: 600; color: #fff; background: var(--navy); border: none; border-radius: 20px; padding: 7px 14px; cursor: pointer; }
-.tb-ask-link:hover { opacity: .88; }
-.ask-overlay { display: none; position: fixed; inset: 0; background: rgba(16,20,24,.4); z-index: 500; align-items: flex-start; justify-content: center; padding-top: 100px; }
-.ask-overlay.show { display: flex; }
-.ask-panel { background: #fff; border-radius: 14px; width: 100%; max-width: 560px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
-.ask-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.ask-panel-title { font-size: 17px; font-weight: 700; color: var(--ink); }
-.ask-close { background: none; border: none; color: var(--ink-3); font-size: 14px; cursor: pointer; }
-.ask-panel-sub { font-size: 12.5px; color: var(--ink-3); margin-bottom: 16px; }
-.ask-form { display: flex; gap: 8px; }
-.ask-form input { flex: 1; font-size: 14px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); }
-.ask-form input:focus { outline: 2px solid var(--navy); outline-offset: 1px; border-color: transparent; }
-.ask-answer { margin-top: 16px; font-size: 14px; line-height: 1.6; color: var(--ink); min-height: 20px; }
-.ask-answer.muted { color: var(--ink-3); }
+.ask-sidebar { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.ask-history { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 2px; }
+.ask-empty { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; padding: 0 2px; }
+.ask-msg-q { font-size: 12px; font-weight: 600; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.ask-msg-a { font-size: 12px; color: var(--ink-2); line-height: 1.5; padding: 0 2px 2px; }
+.ask-msg-a.loading { color: var(--ink-3); font-style: italic; }
+.ask-form-inline { display: flex; gap: 6px; }
+.ask-form-inline input { flex: 1; font-size: 12.5px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 7px; background: #fff; min-width: 0; }
+.ask-form-inline input:focus { outline: 2px solid var(--navy); outline-offset: 1px; border-color: transparent; }
+.ask-form-inline button { width: 32px; flex-shrink: 0; border: none; background: var(--navy); color: #fff; border-radius: 7px; cursor: pointer; font-size: 13px; }
+.ask-form-inline button:disabled { opacity: .5; cursor: default; }
 .tb-admin-link:hover { text-decoration: underline; }
 .app-body { display: flex; max-width: 1360px; margin: 0 auto; align-items: flex-start; }
 .sidebar { width: 220px; flex-shrink: 0; padding: 24px 14px; position: sticky; top: 60px; }
@@ -251,30 +248,24 @@ table.rank tr:last-child td { border-bottom: none; }
       <div class="tb-mark">GRUPO VITAE BRASIL <span>· analytics</span></div>
     </div>
     <div class="topbar-right">
-      <button class="tb-ask-link" id="tbAskLink">✦ Pergunte aos dados</button>
       <span class="tb-user" id="tbUserEmail"></span>
       <button class="tb-admin-link" id="tbAdminLink" style="display:none">Admin</button>
       <button class="tb-logout" id="logoutBtn">Sair</button>
-    </div>
-  </div>
-  <div class="ask-overlay" id="askOverlay">
-    <div class="ask-panel">
-      <div class="ask-panel-head">
-        <div class="ask-panel-title">Pergunte aos dados</div>
-        <button class="ask-close" id="askClose">✕</button>
-      </div>
-      <div class="ask-panel-sub">Pergunte em português sobre qualquer uma das 6 empresas — leads, sessões, seguidores, cliques de busca (últimos 30 dias).</div>
-      <form id="askForm" class="ask-form">
-        <input type="text" id="askInput" placeholder="ex: quantos leads o Albert teve essa semana?" autocomplete="off">
-        <button type="submit" class="admin-btn" id="askSubmit">Perguntar</button>
-      </form>
-      <div id="askAnswer" class="ask-answer"></div>
     </div>
   </div>
   <div class="app-body">
     <aside class="sidebar">
       <div class="sidebar-title">Empresas</div>
       <div class="sidebar-list" id="companyRail"></div>
+
+      <div class="ask-sidebar">
+        <div class="sidebar-title">✦ Pergunte aos dados</div>
+        <div class="ask-history" id="askHistory"></div>
+        <form id="askForm" class="ask-form-inline">
+          <input type="text" id="askInput" placeholder="ex: leads do Albert essa semana" autocomplete="off">
+          <button type="submit" id="askSubmit">➤</button>
+        </form>
+      </div>
     </aside>
     <main class="main-area">
       <div class="main-area-head">
@@ -934,36 +925,40 @@ async function enterApp() {
   boot();
 }
 
-/* ── Pergunte aos dados ── */
-document.getElementById('tbAskLink').onclick = () => {
-  document.getElementById('askOverlay').classList.add('show');
-  document.getElementById('askInput').focus();
-};
-document.getElementById('askClose').onclick = () => {
-  document.getElementById('askOverlay').classList.remove('show');
-};
-document.getElementById('askOverlay').onclick = (e) => {
-  if (e.target.id === 'askOverlay') document.getElementById('askOverlay').classList.remove('show');
-};
-document.getElementById('askForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const question = document.getElementById('askInput').value.trim();
-  if (!question) return;
-  const answerEl = document.getElementById('askAnswer');
-  const submitBtn = document.getElementById('askSubmit');
-  answerEl.className = 'ask-answer muted';
-  answerEl.textContent = 'Consultando…';
-  submitBtn.disabled = true;
+/* ── Pergunte aos dados (mini-chat fixo na sidebar) ── */
+let askHistory = [];
 
-  const { data, error } = await sb.functions.invoke('ask-data', { body: { question } });
-  submitBtn.disabled = false;
-  if (error || data?.error) {
-    answerEl.className = 'ask-answer muted';
-    answerEl.textContent = data?.error || 'Não foi possível responder agora.';
+function renderAskHistory() {
+  const el = document.getElementById('askHistory');
+  if (!askHistory.length) {
+    el.innerHTML = `<div class="ask-empty">Pergunte sobre leads, sessões, seguidores ou cliques de busca de qualquer uma das 6 empresas (últimos 7/30 dias).</div>`;
     return;
   }
-  answerEl.className = 'ask-answer';
-  answerEl.textContent = data.answer;
+  el.innerHTML = askHistory.map(m => `
+    <div class="ask-msg-q">${m.q}</div>
+    <div class="ask-msg-a${m.loading ? ' loading' : ''}">${m.loading ? 'Consultando…' : m.a}</div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+renderAskHistory();
+
+document.getElementById('askForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('askInput');
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = '';
+  document.getElementById('askSubmit').disabled = true;
+
+  const entry = { q: question, a: '', loading: true };
+  askHistory.push(entry);
+  renderAskHistory();
+
+  const { data, error } = await sb.functions.invoke('ask-data', { body: { question } });
+  entry.loading = false;
+  entry.a = (error || data?.error) ? (data?.error || 'Não foi possível responder agora.') : data.answer;
+  document.getElementById('askSubmit').disabled = false;
+  renderAskHistory();
 });
 
 // Restaura sessão já existente (recarregou a página, por exemplo)
