@@ -297,6 +297,7 @@ const MAIN_TABS = [
   { id:'analytics', label:'Analytics & SEO' },
   { id:'social',     label:'Redes sociais' },
   { id:'rd',          label:'RD Station', rdOnly:true },
+  { id:'comunidade',  label:'Comunidade' },
   { id:'ai-summary',  label:'Resumo por IA' },
 ];
 
@@ -346,7 +347,7 @@ function computePeriodRange() {
 
 function renderPeriodBar() {
   const wrap = document.getElementById('periodBarWrap');
-  if (activeTab !== 'analytics' && activeTab !== 'social') { wrap.classList.remove('show'); return; }
+  if (activeTab !== 'analytics' && activeTab !== 'social' && activeTab !== 'comunidade') { wrap.classList.remove('show'); return; }
   wrap.classList.add('show');
 
   const presets = [
@@ -1024,6 +1025,7 @@ function renderContent() {
   if (activeTab === 'rd') { renderRD(); return; }
   if (activeTab === 'admin') { renderAdmin(); return; }
   if (activeTab === 'ai-summary') { renderAiSummary(); return; }
+  if (activeTab === 'comunidade') { renderComunidade(); return; }
 
   const renderers = {
     '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
@@ -1524,6 +1526,77 @@ async function renderAiSummary() {
   };
 }
 
+/* ════════════════════════════════════════════════════
+   COMUNIDADE — grupos de WhatsApp/Telegram (registro manual)
+   ════════════════════════════════════════════════════ */
+async function renderComunidade() {
+  destroyCharts();
+  const myToken = renderToken;
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+
+  const { end } = computePeriodRange();
+  const month = end.slice(0, 7) + '-01';
+  const monthLabel = new Date(month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  const [currentResp, historyResp] = await Promise.all([
+    sb.from('manual_community_metrics')
+      .select('platform, members_count, messages_count')
+      .eq('company_id', activeCompany).eq('month', month),
+    sb.from('manual_community_metrics')
+      .select('month, platform, members_count, messages_count')
+      .eq('company_id', activeCompany)
+      .order('month', { ascending: false }).limit(24),
+  ]);
+  if (myToken !== renderToken) return;
+
+  const byPlatform = {};
+  (currentResp.data || []).forEach(r => { byPlatform[r.platform] = r; });
+  const history = historyResp.data || [];
+
+  const PLATFORM_LABELS = { whatsapp: 'WhatsApp', telegram: 'Telegram' };
+  const PLATFORM_COLORS = { whatsapp: '#25D366', telegram: '#229ED9' };
+
+  document.getElementById('content').innerHTML = `
+    <div class="stub-tag" style="margin-bottom:16px">Registro manual — atualizado 1x por mês no painel Admin. Mostrando: ${monthLabel}</div>
+    <div class="grid grid-2" style="margin-bottom:16px">
+      ${['whatsapp', 'telegram'].map(p => {
+        const d = byPlatform[p];
+        return `<div class="social-block" style="border-left-color:${PLATFORM_COLORS[p]}; margin-top:0">
+          <div class="social-cap-row">
+            <span class="social-cap-dot" style="background:${PLATFORM_COLORS[p]}"></span>
+            <div class="cap" style="margin:0">${PLATFORM_LABELS[p]}</div>
+          </div>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="v">${d ? d.members_count.toLocaleString('pt-BR') : '—'}</div>
+              <div class="l ${d ? '' : 'muted'}">${d ? 'Membros' : 'Sem registro para este mês'}</div>
+            </div>
+            <div class="kpi">
+              <div class="v">${d ? d.messages_count.toLocaleString('pt-BR') : '—'}</div>
+              <div class="l ${d ? '' : 'muted'}">${d ? 'Mensagens no mês' : 'Registre no Admin'}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="card">
+      <div class="section-title">Histórico</div>
+      <div class="section-sub">Últimos registros mensais desta empresa</div>
+      <table class="rank">
+        <thead><tr><th>Mês</th><th>Plataforma</th><th>Membros</th><th>Mensagens</th></tr></thead>
+        <tbody>
+          ${history.length ? history.map(h => `<tr>
+            <td>${new Date(h.month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</td>
+            <td>${PLATFORM_LABELS[h.platform] || h.platform}</td>
+            <td>${h.members_count.toLocaleString('pt-BR')}</td>
+            <td>${h.messages_count.toLocaleString('pt-BR')}</td>
+          </tr>`).join('') : '<tr><td colspan="4">Nenhum registro ainda — adicione pelo painel Admin.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderAlertas() {
   destroyCharts();
   const r = seed(activeCompany + 'alerts');
@@ -1548,22 +1621,71 @@ function renderAlertas() {
 /* ════════════════════════════════════════════════════
    ADMIN — usuários, convites e log de auditoria
    ════════════════════════════════════════════════════ */
+async function fetchIntegrationHealth() {
+  const sources = [
+    { key: 'ga4', label: 'GA4', table: 'ga4_daily_metrics' },
+    { key: 'gsc', label: 'Search Console', table: 'gsc_daily_metrics' },
+    { key: 'social', label: 'Redes sociais', table: 'reportei_social_metrics' },
+    { key: 'rd', label: 'RD Station', table: 'rd_leads' },
+  ];
+  const result = {};
+  for (const s of sources) {
+    const { data } = await sb.from(s.table).select('company_id, date').order('date', { ascending: false }).limit(500);
+    const latest = {};
+    (data || []).forEach(r => { if (!(r.company_id in latest)) latest[r.company_id] = r.date; });
+    result[s.key] = { label: s.label, byCompany: latest };
+  }
+  return result;
+}
+
+function healthStatus(dateStr) {
+  if (!dateStr) return { color: 'var(--ink-3)', text: 'sem dado' };
+  const days = Math.floor((Date.now() - new Date(dateStr + 'T00:00:00')) / 86400000);
+  if (days <= 2) return { color: 'var(--up)', text: dateStr };
+  if (days <= 6) return { color: 'var(--amb)', text: `${dateStr} (${days}d)` };
+  return { color: 'var(--dn)', text: `${dateStr} (${days}d atrás)` };
+}
+
 async function renderAdmin() {
   const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
 
-  const [usersResp, invitesResp, logResp] = await Promise.all([
+  const [usersResp, invitesResp, logResp, health, projectPostsResp, communityResp] = await Promise.all([
     sb.from('profiles').select('*').order('created_at', { ascending: false }),
     sb.from('invite_codes').select('*').order('created_at', { ascending: false }).limit(30),
     sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(50),
+    fetchIntegrationHealth(),
+    sb.from('manual_project_posts').select('*').order('month', { ascending: false }).limit(24),
+    sb.from('manual_community_metrics').select('*').order('month', { ascending: false }).limit(24),
   ]);
   if (myToken !== renderToken) return;
 
   const users = usersResp.data || [];
   const invites = invitesResp.data || [];
   const log = logResp.data || [];
+  const projectPosts = projectPostsResp.data || [];
+  const communityMetrics = communityResp.data || [];
+  const sourceKeys = ['ga4', 'gsc', 'social', 'rd'];
 
   document.getElementById('content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Saúde das integrações</div>
+      <div class="section-sub">Data da última sincronização com dado real, por empresa. 🟢 até 2 dias · 🟡 3-6 dias · 🔴 7+ dias ou sem dado.</div>
+      <table class="rank">
+        <thead><tr><th>Empresa</th>${sourceKeys.map(k => `<th>${health[k].label}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${COMPANIES.map(c => `<tr>
+            <td><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c.dot};margin-right:8px"></span>${c.name}</td>
+            ${sourceKeys.map(k => {
+              if (k === 'rd' && !c.rd) return `<td style="color:var(--ink-3)">—</td>`;
+              const st = healthStatus(health[k].byCompany[c.id]);
+              return `<td><span class="status-dot" style="background:${st.color}"></span>${st.text}</td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
     <div class="card" style="margin-bottom:16px">
       <div class="section-title">Gerar código de convite</div>
       <div class="section-sub">Compartilhe o código com a pessoa — ele só funciona uma vez.</div>
@@ -1592,6 +1714,72 @@ async function renderAdmin() {
               <button class="admin-btn ${u.is_active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.is_active}">${u.is_active ? 'Desativar' : 'Ativar'}</button>
             </td>
           </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Posts de projetos (registro manual mensal)</div>
+      <div class="section-sub">Ferramentas como Reportei/Instagram não distinguem "posts de projetos" — preencha manualmente 1x por mês.</div>
+      <div class="admin-inline-form">
+        <select id="ppCompany">
+          ${COMPANIES.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+        </select>
+        <input type="month" id="ppMonth" value="${new Date().toISOString().slice(0,7)}">
+        <input type="number" id="ppCount" min="0" placeholder="Quantidade" style="width:110px">
+        <button class="admin-btn" id="savePpBtn">Salvar</button>
+        <span id="ppResult" style="font-size:13px"></span>
+      </div>
+      <table class="rank" style="margin-top:14px">
+        <thead><tr><th>Empresa</th><th>Mês</th><th>Posts de projetos (Instagram)</th><th>Atualizado por</th></tr></thead>
+        <tbody>
+          ${projectPosts.length ? projectPosts.map(p => {
+            const company = COMPANIES.find(c => c.id === p.company_id);
+            const monthLabel = new Date(p.month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            return `<tr>
+              <td>${company ? company.name : p.company_id}</td>
+              <td>${monthLabel}</td>
+              <td>${p.instagram_count}</td>
+              <td>${p.updated_by_email || '—'}</td>
+            </tr>`;
+          }).join('') : '<tr><td colspan="4">Nenhum registro ainda.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-title">Comunidade (registro manual mensal)</div>
+      <div class="section-sub">Grupos de WhatsApp e Telegram não têm API — preencha manualmente 1x por mês, por plataforma.</div>
+      <div class="admin-inline-form">
+        <select id="cmCompany">
+          ${COMPANIES.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+        </select>
+        <select id="cmPlatform">
+          <option value="whatsapp">WhatsApp</option>
+          <option value="telegram">Telegram</option>
+        </select>
+        <input type="month" id="cmMonth" value="${new Date().toISOString().slice(0,7)}">
+        <input type="number" id="cmMembers" min="0" placeholder="Membros" style="width:100px">
+        <input type="number" id="cmMessages" min="0" placeholder="Mensagens" style="width:110px">
+        <button class="admin-btn" id="saveCmBtn">Salvar</button>
+        <span id="cmResult" style="font-size:13px"></span>
+      </div>
+      <table class="rank" style="margin-top:14px">
+        <thead><tr><th>Empresa</th><th>Mês</th><th>Plataforma</th><th>Membros</th><th>Mensagens</th><th>Atualizado por</th></tr></thead>
+        <tbody>
+          ${communityMetrics.length ? communityMetrics.map(m => {
+            const company = COMPANIES.find(c => c.id === m.company_id);
+            const monthLabel = new Date(m.month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            const platformLabel = m.platform === 'whatsapp' ? 'WhatsApp' : 'Telegram';
+            return `<tr>
+              <td>${company ? company.name : m.company_id}</td>
+              <td>${monthLabel}</td>
+              <td>${platformLabel}</td>
+              <td>${m.members_count}</td>
+              <td>${m.messages_count}</td>
+              <td>${m.updated_by_email || '—'}</td>
+            </tr>`;
+          }).join('') : '<tr><td colspan="6">Nenhum registro ainda.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1642,6 +1830,54 @@ async function renderAdmin() {
     renderAdmin();
   };
 
+  document.getElementById('savePpBtn').onclick = async () => {
+    const companyId = document.getElementById('ppCompany').value;
+    const month = document.getElementById('ppMonth').value;
+    const count = Number(document.getElementById('ppCount').value);
+    const resultEl = document.getElementById('ppResult');
+    if (!month || isNaN(count) || count < 0) {
+      resultEl.style.color = 'var(--dn)';
+      resultEl.textContent = 'Preencha o mês e uma quantidade válida.';
+      return;
+    }
+    const { data, error } = await sb.functions.invoke('save-project-posts', {
+      body: { companyId, month, instagramCount: count },
+    });
+    if (error || data?.error) {
+      resultEl.style.color = 'var(--dn)';
+      resultEl.textContent = data?.error || 'Erro ao salvar.';
+      return;
+    }
+    resultEl.style.color = 'var(--up)';
+    resultEl.textContent = 'Salvo!';
+    renderAdmin();
+  };
+
+  document.getElementById('saveCmBtn').onclick = async () => {
+    const companyId = document.getElementById('cmCompany').value;
+    const platform = document.getElementById('cmPlatform').value;
+    const month = document.getElementById('cmMonth').value;
+    const members = Number(document.getElementById('cmMembers').value);
+    const messages = Number(document.getElementById('cmMessages').value);
+    const resultEl = document.getElementById('cmResult');
+    if (!month || isNaN(members) || members < 0 || isNaN(messages) || messages < 0) {
+      resultEl.style.color = 'var(--dn)';
+      resultEl.textContent = 'Preencha o mês e valores válidos.';
+      return;
+    }
+    const { data, error } = await sb.functions.invoke('save-community-metrics', {
+      body: { companyId, month, platform, membersCount: members, messagesCount: messages },
+    });
+    if (error || data?.error) {
+      resultEl.style.color = 'var(--dn)';
+      resultEl.textContent = data?.error || 'Erro ao salvar.';
+      return;
+    }
+    resultEl.style.color = 'var(--up)';
+    resultEl.textContent = 'Salvo!';
+    renderAdmin();
+  };
+
   document.querySelectorAll('[data-reset]').forEach(btn => {
     btn.onclick = async () => {
       const newPassword = prompt('Nova senha para este usuário (mínimo 8 caracteres):');
@@ -1687,10 +1923,11 @@ async function renderSocial() {
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
 
   const { start, end } = computePeriodRange();
+  const periodEndMonth = end.slice(0, 7) + '-01';
 
-  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
+  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp, projectPostsResp] = await Promise.all([
     sb.from('reportei_social_metrics')
-      .select('channel, followers, reach, engagement, date')
+      .select('channel, followers, reach, engagement, posts_count, stories_count, date')
       .eq('company_id', activeCompany)
       .lte('date', end)
       .order('date', { ascending: false }),
@@ -1712,6 +1949,10 @@ async function renderSocial() {
       .select('city, followers')
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
       .order('followers', { ascending: false }).limit(8),
+    sb.from('manual_project_posts')
+      .select('month, instagram_count')
+      .eq('company_id', activeCompany).eq('month', periodEndMonth)
+      .maybeSingle(),
   ]);
   if (myToken !== renderToken) return;
 
@@ -1723,6 +1964,7 @@ async function renderSocial() {
   const followersHistory = historyResp.data || [];
   const audienceRows = audienceResp.data || [];
   const topCities = citiesResp.data || [];
+  const projectPostsMonth = projectPostsResp.data;
 
   const latestByChannel = {};
   (metricsResp.data || []).forEach(row => {
@@ -1780,6 +2022,22 @@ async function renderSocial() {
           <div class="l ${engagement ? '' : 'muted'}">${engagement ? 'Engajamento (curtidas + comentários + compart.)' : (isTiktok ? 'Engajamento (indisponível nesta rede)' : 'Engajamento')}</div>
         </div>
       </div>
+      ${c.channel === 'instagram_business' ? `
+        <div class="kpis" style="margin-top:20px">
+          <div class="kpi">
+            <div class="v">${c.posts_count != null ? fmtNum(c.posts_count) : '—'}</div>
+            <div class="l ${c.posts_count != null ? '' : 'muted'}">${c.posts_count != null ? 'Publicações (últ. 30 dias)' : 'Publicações (sincronize novamente)'}</div>
+          </div>
+          <div class="kpi">
+            <div class="v">${c.stories_count != null ? fmtNum(c.stories_count) : '—'}</div>
+            <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories (últ. 30 dias)' : 'Stories (sincronize novamente)'}</div>
+          </div>
+          <div class="kpi">
+            <div class="v">${projectPostsMonth ? fmtNum(projectPostsMonth.instagram_count) : '—'}</div>
+            <div class="l ${projectPostsMonth ? '' : 'muted'}">${projectPostsMonth ? `Posts de projetos em ${new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : 'Posts de projetos (registre no Admin)'}</div>
+          </div>
+        </div>
+      ` : ''}
       ${c.channel === 'instagram_business' && followersHistory.length ? `
         <div class="cap">Evolução de seguidores</div>
         <div class="chart-box" style="margin-bottom:40px"><canvas id="chFollowersHistory"></canvas></div>
