@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vitae Insights</title>
+<title>Analytics · Grupo Vitae Brasil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -261,7 +261,7 @@ table.rank tr:last-child td { border-bottom: none; }
 
 <div id="view-home">
   <div class="home-topbar">
-    <div class="tb-mark">Vitae Insights <span>· analytics</span></div>
+    <div class="tb-mark">GRUPO VITAE BRASIL <span>· analytics</span></div>
     <div class="topbar-right">
       <span class="tb-user" id="homeUserEmail"></span>
       <button class="tb-logout" id="homeLogoutBtn">Sair</button>
@@ -279,7 +279,7 @@ table.rank tr:last-child td { border-bottom: none; }
 <div id="view-app">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="tb-mark" id="tbMarkHome" style="cursor:pointer">Vitae Insights <span>· analytics</span></div>
+      <div class="tb-mark" id="tbMarkHome" style="cursor:pointer">GRUPO VITAE BRASIL <span>· analytics</span></div>
     </div>
     <div class="topbar-right">
       <span class="tb-user" id="tbUserEmail"></span>
@@ -2009,12 +2009,8 @@ async function renderSocial() {
 
   const { start, end } = computePeriodRange();
 
-  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
-    sb.from('reportei_social_metrics')
-      .select('channel, followers, reach, engagement, posts_count, stories_count, date')
-      .eq('company_id', activeCompany)
-      .lte('date', end)
-      .order('date', { ascending: false }),
+  const [liveResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
+    sb.functions.invoke('reportei-live', { body: { companyId: activeCompany, start, end } }),
     sb.from('reportei_top_posts')
       .select('channel, post_type, caption, url, reach, views, interactions, likes, comments, shares, posted_at')
       .eq('company_id', activeCompany)
@@ -2036,8 +2032,8 @@ async function renderSocial() {
   ]);
   if (myToken !== renderToken) return;
 
-  if (metricsResp.error) {
-    document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados: ${metricsResp.error.message}</div>`;
+  if (liveResp.error || liveResp.data?.error) {
+    document.getElementById('content').innerHTML = `<div class="card">Erro ao carregar dados ao vivo do Reportei: ${liveResp.data?.error || liveResp.error.message}</div>`;
     return;
   }
 
@@ -2045,9 +2041,18 @@ async function renderSocial() {
   const audienceRows = audienceResp.data || [];
   const topCities = citiesResp.data || [];
 
+  const liveChannels = liveResp.data?.channels || {};
   const latestByChannel = {};
-  (metricsResp.data || []).forEach(row => {
-    if (!latestByChannel[row.channel]) latestByChannel[row.channel] = row;
+  Object.entries(liveChannels).forEach(([slug, d]) => {
+    if (!d || d.error) return;
+    latestByChannel[slug] = {
+      channel: slug,
+      followers: d.followers,
+      reach: d.reach,
+      engagement: d.engagement,
+      posts_count: d.postsCount,
+      stories_count: d.storiesCount,
+    };
   });
 
   const postsByChannel = {};
@@ -2079,7 +2084,7 @@ async function renderSocial() {
     const color = CHANNEL_COLORS[c.channel] || '#98a0aa';
     const isTiktok = c.channel === 'tiktok';
     const posts = (postsByChannel[c.channel] || []).slice(0, 3);
-    const engagement = engagementByChannel[c.channel] || c.engagement || 0;
+    const engagement = c.engagement ?? engagementByChannel[c.channel] ?? 0;
 
     return `
     <div class="social-block" style="border-left-color:${color}">
@@ -2094,7 +2099,7 @@ async function renderSocial() {
         </div>
         <div class="kpi">
           <div class="v">${isTiktok ? '—' : fmtNum(c.reach)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : `Alcance (últ. 30 dias, em ${c.date})`}</div>
+          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : 'Alcance no período'}</div>
         </div>
         <div class="kpi">
           <div class="v">${engagement ? fmtNum(engagement) : '—'}</div>
@@ -2105,11 +2110,11 @@ async function renderSocial() {
         <div class="kpis" style="margin-top:20px">
           <div class="kpi">
             <div class="v">${c.posts_count != null ? fmtNum(c.posts_count) : '—'}</div>
-            <div class="l ${c.posts_count != null ? '' : 'muted'}">${c.posts_count != null ? 'Publicações (últ. 30 dias)' : 'Publicações (sincronize novamente)'}</div>
+            <div class="l ${c.posts_count != null ? '' : 'muted'}">${c.posts_count != null ? 'Publicações no período' : 'Publicações (sem dado)'}</div>
           </div>
           <div class="kpi">
             <div class="v">${c.stories_count != null ? fmtNum(c.stories_count) : '—'}</div>
-            <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories (últ. 30 dias)' : 'Stories (sincronize novamente)'}</div>
+            <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories no período' : 'Stories (sem dado)'}</div>
           </div>
         </div>
       ` : ''}
