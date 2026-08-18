@@ -1726,12 +1726,13 @@ async function renderAdmin() {
           ${COMPANIES.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
         </select>
         <input type="month" id="ppMonth" value="${new Date().toISOString().slice(0,7)}">
+        <input type="text" id="ppCity" placeholder="Cidade do projeto" style="width:160px">
         <input type="number" id="ppCount" min="0" placeholder="Quantidade" style="width:110px">
         <button class="admin-btn" id="savePpBtn">Salvar</button>
         <span id="ppResult" style="font-size:13px"></span>
       </div>
       <table class="rank" style="margin-top:14px">
-        <thead><tr><th>Empresa</th><th>Mês</th><th>Posts de projetos (Instagram)</th><th>Atualizado por</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Mês</th><th>Cidade</th><th>Posts de projetos (Instagram)</th><th>Atualizado por</th></tr></thead>
         <tbody>
           ${projectPosts.length ? projectPosts.map(p => {
             const company = COMPANIES.find(c => c.id === p.company_id);
@@ -1739,10 +1740,11 @@ async function renderAdmin() {
             return `<tr>
               <td>${company ? company.name : p.company_id}</td>
               <td>${monthLabel}</td>
+              <td>${p.city || '—'}</td>
               <td>${p.instagram_count}</td>
               <td>${p.updated_by_email || '—'}</td>
             </tr>`;
-          }).join('') : '<tr><td colspan="4">Nenhum registro ainda.</td></tr>'}
+          }).join('') : '<tr><td colspan="5">Nenhum registro ainda.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1833,15 +1835,16 @@ async function renderAdmin() {
   document.getElementById('savePpBtn').onclick = async () => {
     const companyId = document.getElementById('ppCompany').value;
     const month = document.getElementById('ppMonth').value;
+    const city = document.getElementById('ppCity').value.trim();
     const count = Number(document.getElementById('ppCount').value);
     const resultEl = document.getElementById('ppResult');
-    if (!month || isNaN(count) || count < 0) {
+    if (!month || !city || isNaN(count) || count < 0) {
       resultEl.style.color = 'var(--dn)';
-      resultEl.textContent = 'Preencha o mês e uma quantidade válida.';
+      resultEl.textContent = 'Preencha o mês, a cidade e uma quantidade válida.';
       return;
     }
     const { data, error } = await sb.functions.invoke('save-project-posts', {
-      body: { companyId, month, instagramCount: count },
+      body: { companyId, month, city, instagramCount: count },
     });
     if (error || data?.error) {
       resultEl.style.color = 'var(--dn)';
@@ -1950,9 +1953,8 @@ async function renderSocial() {
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
       .order('followers', { ascending: false }).limit(8),
     sb.from('manual_project_posts')
-      .select('month, instagram_count')
-      .eq('company_id', activeCompany).eq('month', periodEndMonth)
-      .maybeSingle(),
+      .select('month, city, instagram_count')
+      .eq('company_id', activeCompany).eq('month', periodEndMonth),
   ]);
   if (myToken !== renderToken) return;
 
@@ -1964,7 +1966,8 @@ async function renderSocial() {
   const followersHistory = historyResp.data || [];
   const audienceRows = audienceResp.data || [];
   const topCities = citiesResp.data || [];
-  const projectPostsMonth = projectPostsResp.data;
+  const projectPostsMonth = projectPostsResp.data || [];
+  const projectPostsTotal = projectPostsMonth.reduce((s, p) => s + (p.instagram_count || 0), 0);
 
   const latestByChannel = {};
   (metricsResp.data || []).forEach(row => {
@@ -2033,10 +2036,18 @@ async function renderSocial() {
             <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories (últ. 30 dias)' : 'Stories (sincronize novamente)'}</div>
           </div>
           <div class="kpi">
-            <div class="v">${projectPostsMonth ? fmtNum(projectPostsMonth.instagram_count) : '—'}</div>
-            <div class="l ${projectPostsMonth ? '' : 'muted'}">${projectPostsMonth ? `Posts de projetos em ${new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : 'Posts de projetos (registre no Admin)'}</div>
+            <div class="v">${projectPostsMonth.length ? fmtNum(projectPostsTotal) : '—'}</div>
+            <div class="l ${projectPostsMonth.length ? '' : 'muted'}">${projectPostsMonth.length ? `Posts de projetos em ${new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : 'Posts de projetos (registre no Admin)'}</div>
           </div>
         </div>
+        ${projectPostsMonth.length > 1 ? `
+          <table class="rank" style="margin-top:14px; margin-bottom:20px">
+            <thead><tr><th>Cidade</th><th>Posts de projetos</th></tr></thead>
+            <tbody>
+              ${projectPostsMonth.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        ` : ''}
       ` : ''}
       ${c.channel === 'instagram_business' && followersHistory.length ? `
         <div class="cap">Evolução de seguidores</div>
