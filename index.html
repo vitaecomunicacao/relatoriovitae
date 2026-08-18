@@ -1609,23 +1609,29 @@ async function renderManualData() {
   const month = manualDataMonth + '-01';
   const monthLabel = new Date(month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  const [communityResp, projectPostsResp] = await Promise.all([
+  const [communityResp, historyResp] = await Promise.all([
     sb.from('manual_community_metrics')
       .select('platform, members_count, messages_count')
       .eq('company_id', activeCompany).eq('month', month),
-    sb.from('manual_project_posts')
-      .select('city, instagram_count')
-      .eq('company_id', activeCompany).eq('month', month),
+    sb.from('manual_community_metrics')
+      .select('month, platform, members_count, messages_count')
+      .eq('company_id', activeCompany)
+      .order('month', { ascending: true }),
   ]);
   if (myToken !== renderToken) return;
 
   const byPlatform = {};
   (communityResp.data || []).forEach(r => { byPlatform[r.platform] = r; });
-  const projectPosts = projectPostsResp.data || [];
-  const projectPostsTotal = projectPosts.reduce((s, p) => s + (p.instagram_count || 0), 0);
 
   const PLATFORM_LABELS = { whatsapp: 'WhatsApp', telegram: 'Telegram' };
   const PLATFORM_COLORS = { whatsapp: '#25D366', telegram: '#229ED9' };
+
+  // Agrupa o histórico por mês, com uma coluna por plataforma
+  const byMonth = {};
+  (historyResp.data || []).forEach(r => {
+    (byMonth[r.month] ||= {})[r.platform] = r;
+  });
+  const months = Object.keys(byMonth).sort();
 
   document.getElementById('content').innerHTML = `
     <div class="admin-inline-form" style="margin-bottom:16px">
@@ -1657,19 +1663,46 @@ async function renderManualData() {
       }).join('')}
     </div>
 
-    <div class="section-title" style="margin-bottom:10px">Posts de projetos (Instagram)</div>
-    <div class="card">
-      ${projectPosts.length ? `
+    ${months.length ? `
+      <div class="section-title" style="margin-bottom:10px">Comparativo entre meses</div>
+      <div class="card" style="margin-bottom:24px">
+        <div class="chart-box"><canvas id="chCommunityCompare"></canvas></div>
+      </div>
+      <div class="card">
         <table class="rank">
-          <thead><tr><th>Cidade</th><th>Posts de projetos</th></tr></thead>
+          <thead><tr><th>Mês</th><th>WhatsApp — Membros</th><th>WhatsApp — Mensagens</th><th>Telegram — Membros</th><th>Telegram — Mensagens</th></tr></thead>
           <tbody>
-            ${projectPosts.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
-            ${projectPosts.length > 1 ? `<tr style="font-weight:600"><td>Total</td><td>${projectPostsTotal}</td></tr>` : ''}
+            ${[...months].reverse().map(m => {
+              const w = byMonth[m].whatsapp, t = byMonth[m].telegram;
+              const label = new Date(m + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+              return `<tr>
+                <td>${label}</td>
+                <td>${w ? w.members_count.toLocaleString('pt-BR') : '—'}</td>
+                <td>${w ? w.messages_count.toLocaleString('pt-BR') : '—'}</td>
+                <td>${t ? t.members_count.toLocaleString('pt-BR') : '—'}</td>
+                <td>${t ? t.messages_count.toLocaleString('pt-BR') : '—'}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
-      ` : `<div class="section-sub" style="margin:0">Sem registro para este mês. Adicione pelo painel Admin.</div>`}
-    </div>
+      </div>
+    ` : ''}
   `;
+
+  if (months.length) {
+    const monthLabelsFmt = months.map(m => new Date(m + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }));
+    chartInstances.push(new Chart(document.getElementById('chCommunityCompare'), {
+      type: 'line',
+      data: {
+        labels: monthLabelsFmt,
+        datasets: [
+          { label: 'WhatsApp — membros', data: months.map(m => byMonth[m].whatsapp?.members_count ?? null), borderColor: PLATFORM_COLORS.whatsapp, backgroundColor: 'transparent', tension: .3 },
+          { label: 'Telegram — membros', data: months.map(m => byMonth[m].telegram?.members_count ?? null), borderColor: PLATFORM_COLORS.telegram, backgroundColor: 'transparent', tension: .3 },
+        ],
+      },
+      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { y: { grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } },
+    }));
+  }
 
   document.getElementById('manualDataMonthInput').onchange = (e) => {
     if (!e.target.value) return;
@@ -2008,8 +2041,9 @@ async function renderSocial() {
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
 
   const { start, end } = computePeriodRange();
+  const periodEndMonth = end.slice(0, 7) + '-01';
 
-  const [liveResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
+  const [liveResp, postsResp, historyResp, audienceResp, citiesResp, projectPostsResp] = await Promise.all([
     sb.functions.invoke('reportei-live', { body: { companyId: activeCompany, start, end } }),
     sb.from('reportei_top_posts')
       .select('channel, post_type, caption, url, reach, views, interactions, likes, comments, shares, posted_at')
@@ -2029,6 +2063,9 @@ async function renderSocial() {
       .select('city, followers')
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
       .order('followers', { ascending: false }).limit(8),
+    sb.from('manual_project_posts')
+      .select('city, instagram_count')
+      .eq('company_id', activeCompany).eq('month', periodEndMonth),
   ]);
   if (myToken !== renderToken) return;
 
@@ -2040,6 +2077,8 @@ async function renderSocial() {
   const followersHistory = historyResp.data || [];
   const audienceRows = audienceResp.data || [];
   const topCities = citiesResp.data || [];
+  const projectPostsMonth = projectPostsResp.data || [];
+  const projectPostsTotal = projectPostsMonth.reduce((s, p) => s + (p.instagram_count || 0), 0);
 
   const liveChannels = liveResp.data?.channels || {};
   const latestByChannel = {};
@@ -2116,7 +2155,19 @@ async function renderSocial() {
             <div class="v">${c.stories_count != null ? fmtNum(c.stories_count) : '—'}</div>
             <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories no período' : 'Stories (sem dado)'}</div>
           </div>
+          <div class="kpi">
+            <div class="v">${projectPostsMonth.length ? fmtNum(projectPostsTotal) : '—'}</div>
+            <div class="l ${projectPostsMonth.length ? '' : 'muted'}">${projectPostsMonth.length ? `Posts de projetos em ${new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : 'Posts de projetos (registre no Admin)'}</div>
+          </div>
         </div>
+        ${projectPostsMonth.length > 1 ? `
+          <table class="rank" style="margin-top:14px; margin-bottom:20px">
+            <thead><tr><th>Cidade</th><th>Posts de projetos</th></tr></thead>
+            <tbody>
+              ${projectPostsMonth.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        ` : ''}
       ` : ''}
       ${c.channel === 'instagram_business' && followersHistory.length ? `
         <div class="cap">Evolução de seguidores</div>
