@@ -39,6 +39,22 @@ button, input, select { font-family: var(--font); }
 .login-link:hover { text-decoration: underline; }
 #view-app { display: none; }
 #view-app.show { display: block; }
+#view-home { display: none; min-height: 100vh; background-color: #fafbfd; background-image: radial-gradient(circle, #e2e5ea 1px, transparent 1px); background-size: 22px 22px; }
+#view-home.show { display: block; }
+.home-topbar { display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; }
+.home-body { max-width: 760px; margin: 0 auto; padding: 40px 40px 100px; }
+.home-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 6px 14px; margin-bottom: 22px; }
+.home-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--blue, #005caa); }
+.home-title { font-size: 56px; font-weight: 800; letter-spacing: -.03em; line-height: 1.02; color: var(--ink); margin-bottom: 14px; }
+.home-sub { font-size: 15px; color: var(--ink-2); margin-bottom: 48px; }
+.home-select-label { font-size: 11px; font-weight: 700; letter-spacing: .07em; color: var(--ink-3); margin-bottom: 16px; }
+.home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 720px) { .home-grid { grid-template-columns: repeat(2, 1fr); } .home-title { font-size: 40px; } }
+.home-card { aspect-ratio: 1.3; background: #fff; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; padding: 16px; text-align: center; }
+.home-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(16,20,24,.08); border-color: var(--line); }
+.home-card-dot { width: 10px; height: 10px; border-radius: 50%; margin: 0 auto 10px; }
+.home-card-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+.home-card-rd { display: block; font-size: 9.5px; font-weight: 600; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; margin: 6px auto 0; width: fit-content; }
 .topbar { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; position: sticky; top: 0; z-index: 200; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .tb-mark { font-size: 13px; font-weight: 700; color: var(--navy); }
@@ -243,10 +259,27 @@ table.rank tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
+<div id="view-home">
+  <div class="home-topbar">
+    <div class="tb-mark">GRUPO VITAE BRASIL <span>· analytics</span></div>
+    <div class="topbar-right">
+      <span class="tb-user" id="homeUserEmail"></span>
+      <button class="tb-logout" id="homeLogoutBtn">Sair</button>
+    </div>
+  </div>
+  <div class="home-body">
+    <span class="home-badge">● PERFORMANCE &amp; MÍDIAS DIGITAIS</span>
+    <h1 class="home-title">Resultados</h1>
+    <div class="home-sub">Relatório executivo · atualizado diariamente</div>
+    <div class="home-select-label">SELECIONE UMA EMPRESA PARA ACESSAR O RELATÓRIO</div>
+    <div class="home-grid" id="homeGrid"></div>
+  </div>
+</div>
+
 <div id="view-app">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="tb-mark">GRUPO VITAE BRASIL <span>· analytics</span></div>
+      <div class="tb-mark" id="tbMarkHome" style="cursor:pointer">GRUPO VITAE BRASIL <span>· analytics</span></div>
     </div>
     <div class="topbar-right">
       <span class="tb-user" id="tbUserEmail"></span>
@@ -297,7 +330,7 @@ const MAIN_TABS = [
   { id:'analytics', label:'Analytics & SEO' },
   { id:'social',     label:'Redes sociais' },
   { id:'rd',          label:'RD Station', rdOnly:true },
-  { id:'comunidade',  label:'Comunidade' },
+  { id:'manual-data', label:'Dados manuais' },
   { id:'ai-summary',  label:'Resumo por IA' },
 ];
 
@@ -347,7 +380,7 @@ function computePeriodRange() {
 
 function renderPeriodBar() {
   const wrap = document.getElementById('periodBarWrap');
-  if (activeTab !== 'analytics' && activeTab !== 'social' && activeTab !== 'comunidade') { wrap.classList.remove('show'); return; }
+  if (activeTab !== 'analytics' && activeTab !== 'social') { wrap.classList.remove('show'); return; }
   wrap.classList.add('show');
 
   const presets = [
@@ -915,6 +948,7 @@ async function enterApp() {
   currentProfile = profile || null;
 
   document.getElementById('tbUserEmail').textContent = profile?.email || userData.user.email || '';
+  document.getElementById('homeUserEmail').textContent = profile?.email || userData.user.email || '';
   const adminLink = document.getElementById('tbAdminLink');
   if (currentProfile?.role === 'admin') {
     adminLink.style.display = 'inline';
@@ -924,9 +958,44 @@ async function enterApp() {
   }
 
   document.getElementById('view-login').classList.add('hide');
-  document.getElementById('view-app').classList.add('show');
-  boot();
+  goHome();
 }
+
+function goHome() {
+  document.getElementById('view-app').classList.remove('show');
+  document.getElementById('view-home').classList.remove('hide');
+  document.getElementById('view-home').classList.add('show');
+  renderHomeGrid();
+}
+document.getElementById('tbMarkHome').onclick = goHome;
+
+function renderHomeGrid() {
+  document.getElementById('homeGrid').innerHTML = COMPANIES.map(c => `
+    <div class="home-card" data-homecompany="${c.id}">
+      <div>
+        <div class="home-card-dot" style="background:${c.dot}"></div>
+        <div class="home-card-name">${c.name}</div>
+        ${c.rd ? '<span class="home-card-rd">RD</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('[data-homecompany]').forEach(card => {
+    card.onclick = () => {
+      activeCompany = card.dataset.homecompany;
+      document.getElementById('view-home').classList.remove('show');
+      document.getElementById('view-app').classList.add('show');
+      boot();
+    };
+  });
+}
+
+document.getElementById('homeLogoutBtn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  currentProfile = null;
+  document.getElementById('view-home').classList.remove('show');
+  document.getElementById('view-login').classList.remove('hide');
+});
 
 /* ── Pergunte aos dados (mini-chat fixo na sidebar) ── */
 let askHistory = [];
@@ -1025,7 +1094,7 @@ function renderContent() {
   if (activeTab === 'rd') { renderRD(); return; }
   if (activeTab === 'admin') { renderAdmin(); return; }
   if (activeTab === 'ai-summary') { renderAiSummary(); return; }
-  if (activeTab === 'comunidade') { renderComunidade(); return; }
+  if (activeTab === 'manual-data') { renderManualData(); return; }
 
   const renderers = {
     '01': renderResumo, '02': renderAcessos, '03': renderEngajamento,
@@ -1527,38 +1596,46 @@ async function renderAiSummary() {
 }
 
 /* ════════════════════════════════════════════════════
-   COMUNIDADE — grupos de WhatsApp/Telegram (registro manual)
+   DADOS MANUAIS — comunidade (WhatsApp/Telegram) + posts de projetos,
+   ambos com seletor de mês próprio, independente do filtro do Analytics.
    ════════════════════════════════════════════════════ */
-async function renderComunidade() {
+let manualDataMonth = new Date().toISOString().slice(0, 7);
+
+async function renderManualData() {
   destroyCharts();
   const myToken = renderToken;
   document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
 
-  const { end } = computePeriodRange();
-  const month = end.slice(0, 7) + '-01';
+  const month = manualDataMonth + '-01';
   const monthLabel = new Date(month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  const [currentResp, historyResp] = await Promise.all([
+  const [communityResp, projectPostsResp] = await Promise.all([
     sb.from('manual_community_metrics')
       .select('platform, members_count, messages_count')
       .eq('company_id', activeCompany).eq('month', month),
-    sb.from('manual_community_metrics')
-      .select('month, platform, members_count, messages_count')
-      .eq('company_id', activeCompany)
-      .order('month', { ascending: false }).limit(24),
+    sb.from('manual_project_posts')
+      .select('city, instagram_count')
+      .eq('company_id', activeCompany).eq('month', month),
   ]);
   if (myToken !== renderToken) return;
 
   const byPlatform = {};
-  (currentResp.data || []).forEach(r => { byPlatform[r.platform] = r; });
-  const history = historyResp.data || [];
+  (communityResp.data || []).forEach(r => { byPlatform[r.platform] = r; });
+  const projectPosts = projectPostsResp.data || [];
+  const projectPostsTotal = projectPosts.reduce((s, p) => s + (p.instagram_count || 0), 0);
 
   const PLATFORM_LABELS = { whatsapp: 'WhatsApp', telegram: 'Telegram' };
   const PLATFORM_COLORS = { whatsapp: '#25D366', telegram: '#229ED9' };
 
   document.getElementById('content').innerHTML = `
-    <div class="stub-tag" style="margin-bottom:16px">Registro manual — atualizado 1x por mês no painel Admin. Mostrando: ${monthLabel}</div>
-    <div class="grid grid-2" style="margin-bottom:16px">
+    <div class="admin-inline-form" style="margin-bottom:16px">
+      <label style="font-size:12.5px; color:var(--ink-2); font-weight:600">Mês:</label>
+      <input type="month" id="manualDataMonthInput" value="${manualDataMonth}">
+    </div>
+    <div class="stub-tag" style="margin-bottom:16px">Registro manual — atualizado no painel Admin. Mostrando: ${monthLabel}</div>
+
+    <div class="section-title" style="margin-bottom:10px">Comunidade</div>
+    <div class="grid grid-2" style="margin-bottom:24px">
       ${['whatsapp', 'telegram'].map(p => {
         const d = byPlatform[p];
         return `<div class="social-block" style="border-left-color:${PLATFORM_COLORS[p]}; margin-top:0">
@@ -1579,22 +1656,27 @@ async function renderComunidade() {
         </div>`;
       }).join('')}
     </div>
+
+    <div class="section-title" style="margin-bottom:10px">Posts de projetos (Instagram)</div>
     <div class="card">
-      <div class="section-title">Histórico</div>
-      <div class="section-sub">Últimos registros mensais desta empresa</div>
-      <table class="rank">
-        <thead><tr><th>Mês</th><th>Plataforma</th><th>Membros</th><th>Mensagens</th></tr></thead>
-        <tbody>
-          ${history.length ? history.map(h => `<tr>
-            <td>${new Date(h.month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</td>
-            <td>${PLATFORM_LABELS[h.platform] || h.platform}</td>
-            <td>${h.members_count.toLocaleString('pt-BR')}</td>
-            <td>${h.messages_count.toLocaleString('pt-BR')}</td>
-          </tr>`).join('') : '<tr><td colspan="4">Nenhum registro ainda — adicione pelo painel Admin.</td></tr>'}
-        </tbody>
-      </table>
+      ${projectPosts.length ? `
+        <table class="rank">
+          <thead><tr><th>Cidade</th><th>Posts de projetos</th></tr></thead>
+          <tbody>
+            ${projectPosts.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
+            ${projectPosts.length > 1 ? `<tr style="font-weight:600"><td>Total</td><td>${projectPostsTotal}</td></tr>` : ''}
+          </tbody>
+        </table>
+      ` : `<div class="section-sub" style="margin:0">Sem registro para este mês. Adicione pelo painel Admin.</div>`}
     </div>
   `;
+
+  document.getElementById('manualDataMonthInput').onchange = (e) => {
+    if (!e.target.value) return;
+    renderToken++;
+    manualDataMonth = e.target.value;
+    renderManualData();
+  };
 }
 
 function renderAlertas() {
@@ -1926,9 +2008,8 @@ async function renderSocial() {
   document.getElementById('content').innerHTML = `<div class="card">Carregando dados das redes sociais…</div>`;
 
   const { start, end } = computePeriodRange();
-  const periodEndMonth = end.slice(0, 7) + '-01';
 
-  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp, projectPostsResp] = await Promise.all([
+  const [metricsResp, postsResp, historyResp, audienceResp, citiesResp] = await Promise.all([
     sb.from('reportei_social_metrics')
       .select('channel, followers, reach, engagement, posts_count, stories_count, date')
       .eq('company_id', activeCompany)
@@ -1952,9 +2033,6 @@ async function renderSocial() {
       .select('city, followers')
       .eq('company_id', activeCompany).eq('channel', 'instagram_business')
       .order('followers', { ascending: false }).limit(8),
-    sb.from('manual_project_posts')
-      .select('month, city, instagram_count')
-      .eq('company_id', activeCompany).eq('month', periodEndMonth),
   ]);
   if (myToken !== renderToken) return;
 
@@ -1966,8 +2044,6 @@ async function renderSocial() {
   const followersHistory = historyResp.data || [];
   const audienceRows = audienceResp.data || [];
   const topCities = citiesResp.data || [];
-  const projectPostsMonth = projectPostsResp.data || [];
-  const projectPostsTotal = projectPostsMonth.reduce((s, p) => s + (p.instagram_count || 0), 0);
 
   const latestByChannel = {};
   (metricsResp.data || []).forEach(row => {
@@ -1986,7 +2062,7 @@ async function renderSocial() {
 
   if (!channels.length) {
     document.getElementById('content').innerHTML = stubPanel(
-      'Redes sociais', 'Ainda sem dados sincronizados para esta empresa.', []
+      'Redes sociais', 'Ainda sem dados de redes sociais sincronizados para esta empresa neste período.', []
     );
     return;
   }
@@ -2035,19 +2111,7 @@ async function renderSocial() {
             <div class="v">${c.stories_count != null ? fmtNum(c.stories_count) : '—'}</div>
             <div class="l ${c.stories_count != null ? '' : 'muted'}">${c.stories_count != null ? 'Stories (últ. 30 dias)' : 'Stories (sincronize novamente)'}</div>
           </div>
-          <div class="kpi">
-            <div class="v">${projectPostsMonth.length ? fmtNum(projectPostsTotal) : '—'}</div>
-            <div class="l ${projectPostsMonth.length ? '' : 'muted'}">${projectPostsMonth.length ? `Posts de projetos em ${new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : 'Posts de projetos (registre no Admin)'}</div>
-          </div>
         </div>
-        ${projectPostsMonth.length > 1 ? `
-          <table class="rank" style="margin-top:14px; margin-bottom:20px">
-            <thead><tr><th>Cidade</th><th>Posts de projetos</th></tr></thead>
-            <tbody>
-              ${projectPostsMonth.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
-            </tbody>
-          </table>
-        ` : ''}
       ` : ''}
       ${c.channel === 'instagram_business' && followersHistory.length ? `
         <div class="cap">Evolução de seguidores</div>
