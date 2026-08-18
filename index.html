@@ -1985,9 +1985,27 @@ async function renderSocial() {
     .map(slug => latestByChannel[slug]);
 
   if (!channels.length) {
-    document.getElementById('content').innerHTML = stubPanel(
-      'Redes sociais', 'Ainda sem dados sincronizados para esta empresa.', []
-    );
+    const monthLabel = new Date(periodEndMonth + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    document.getElementById('content').innerHTML = `
+      <div class="stub-card" style="margin-bottom:16px">
+        <span class="stub-tag">Em construção</span>
+        <div class="section-title">Redes sociais</div>
+        <div class="section-sub">Ainda sem dados de redes sociais sincronizados para esta empresa neste período.</div>
+      </div>
+      ${projectPostsMonth.length ? `
+        <div class="card">
+          <div class="section-title">Posts de projetos em ${monthLabel}</div>
+          <div class="section-sub">Registro manual — não depende da sincronização automática</div>
+          <table class="rank">
+            <thead><tr><th>Cidade</th><th>Posts de projetos (Instagram)</th></tr></thead>
+            <tbody>
+              ${projectPostsMonth.map(p => `<tr><td>${p.city || '—'}</td><td>${p.instagram_count}</td></tr>`).join('')}
+              ${projectPostsMonth.length > 1 ? `<tr style="font-weight:600"><td>Total</td><td>${projectPostsTotal}</td></tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+    `;
     return;
   }
 
