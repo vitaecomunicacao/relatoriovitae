@@ -1847,7 +1847,7 @@ async function renderAdmin() {
         <span id="ppResult" style="font-size:13px"></span>
       </div>
       <table class="rank" style="margin-top:14px">
-        <thead><tr><th>Empresa</th><th>Mês</th><th>Cidade</th><th>Posts de projetos (Instagram)</th><th>Atualizado por</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Mês</th><th>Cidade</th><th>Posts de projetos (Instagram)</th><th>Atualizado por</th><th>Ações</th></tr></thead>
         <tbody>
           ${projectPosts.length ? projectPosts.map(p => {
             const company = COMPANIES.find(c => c.id === p.company_id);
@@ -1858,8 +1858,12 @@ async function renderAdmin() {
               <td>${p.city || '—'}</td>
               <td>${p.instagram_count}</td>
               <td>${p.updated_by_email || '—'}</td>
+              <td style="display:flex; gap:6px">
+                <button class="admin-btn secondary" data-pp-edit="${p.company_id}" data-pp-month="${p.month}" data-pp-city="${p.city || ''}" data-pp-count="${p.instagram_count}">Editar</button>
+                <button class="admin-btn danger" data-pp-delete="${p.company_id}" data-pp-delmonth="${p.month}" data-pp-delcity="${p.city || ''}">Excluir</button>
+              </td>
             </tr>`;
-          }).join('') : '<tr><td colspan="5">Nenhum registro ainda.</td></tr>'}
+          }).join('') : '<tr><td colspan="6">Nenhum registro ainda.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1882,7 +1886,7 @@ async function renderAdmin() {
         <span id="cmResult" style="font-size:13px"></span>
       </div>
       <table class="rank" style="margin-top:14px">
-        <thead><tr><th>Empresa</th><th>Mês</th><th>Plataforma</th><th>Membros</th><th>Mensagens</th><th>Atualizado por</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Mês</th><th>Plataforma</th><th>Membros</th><th>Mensagens</th><th>Atualizado por</th><th>Ações</th></tr></thead>
         <tbody>
           ${communityMetrics.length ? communityMetrics.map(m => {
             const company = COMPANIES.find(c => c.id === m.company_id);
@@ -1895,8 +1899,12 @@ async function renderAdmin() {
               <td>${m.members_count}</td>
               <td>${m.messages_count}</td>
               <td>${m.updated_by_email || '—'}</td>
+              <td style="display:flex; gap:6px">
+                <button class="admin-btn secondary" data-cm-edit="${m.company_id}" data-cm-platform="${m.platform}" data-cm-month="${m.month}" data-cm-members="${m.members_count}" data-cm-messages="${m.messages_count}">Editar</button>
+                <button class="admin-btn danger" data-cm-delete="${m.company_id}" data-cm-delplatform="${m.platform}" data-cm-delmonth="${m.month}">Excluir</button>
+              </td>
             </tr>`;
-          }).join('') : '<tr><td colspan="6">Nenhum registro ainda.</td></tr>'}
+          }).join('') : '<tr><td colspan="7">Nenhum registro ainda.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1995,6 +2003,59 @@ async function renderAdmin() {
     resultEl.textContent = 'Salvo!';
     renderAdmin();
   };
+
+  // Editar posts de projetos — pré-preenche o formulário com o registro clicado
+  document.querySelectorAll('[data-pp-edit]').forEach(btn => {
+    btn.onclick = () => {
+      document.getElementById('ppCompany').value = btn.dataset.ppEdit;
+      document.getElementById('ppMonth').value = btn.dataset.ppMonth.slice(0, 7);
+      document.getElementById('ppCity').value = btn.dataset.ppCity;
+      document.getElementById('ppCount').value = btn.dataset.ppCount;
+      document.getElementById('ppCity').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  });
+
+  // Excluir posts de projetos
+  document.querySelectorAll('[data-pp-delete]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Excluir este registro de posts de projetos?')) return;
+      const { data, error } = await sb.functions.invoke('delete-manual-record', {
+        body: {
+          table: 'manual_project_posts',
+          keys: { company_id: btn.dataset.ppDelete, month: btn.dataset.ppDelmonth, city: btn.dataset.ppDelcity },
+        },
+      });
+      if (error || data?.error) { alert(data?.error || 'Erro ao excluir.'); return; }
+      renderAdmin();
+    };
+  });
+
+  // Editar comunidade — pré-preenche o formulário com o registro clicado
+  document.querySelectorAll('[data-cm-edit]').forEach(btn => {
+    btn.onclick = () => {
+      document.getElementById('cmCompany').value = btn.dataset.cmEdit;
+      document.getElementById('cmPlatform').value = btn.dataset.cmPlatform;
+      document.getElementById('cmMonth').value = btn.dataset.cmMonth.slice(0, 7);
+      document.getElementById('cmMembers').value = btn.dataset.cmMembers;
+      document.getElementById('cmMessages').value = btn.dataset.cmMessages;
+      document.getElementById('cmMembers').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  });
+
+  // Excluir comunidade
+  document.querySelectorAll('[data-cm-delete]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Excluir este registro de comunidade?')) return;
+      const { data, error } = await sb.functions.invoke('delete-manual-record', {
+        body: {
+          table: 'manual_community_metrics',
+          keys: { company_id: btn.dataset.cmDelete, month: btn.dataset.cmDelmonth, platform: btn.dataset.cmDelplatform },
+        },
+      });
+      if (error || data?.error) { alert(data?.error || 'Erro ao excluir.'); return; }
+      renderAdmin();
+    };
+  });
 
   document.querySelectorAll('[data-reset]').forEach(btn => {
     btn.onclick = async () => {
