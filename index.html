@@ -1712,9 +1712,94 @@ async function renderManualData() {
   };
 }
 
-function renderAlertas() {
-  destroyCharts();
-  const r = seed(activeCompany + 'alerts');
+async function fetchAlertsReal(companyId, company) {
+  const alerts = [];
+  const isGa4Real = GA4_REAL_COMPANIES.has(companyId);
+  const isGscReal = GSC_REAL_COMPANIES.has(companyId);
+  const { start, end } = computePeriodRange();
+
+  // 1. Sessões (GA4) — compara primeira metade do período com a segunda
+  if (isGa4Real) {
+    const d = await fetchGA4Real(companyId);
+    if (d) {
+      if (d.deltaPct <= -20) {
+        alerts.push({
+          sev: d.deltaPct <= -35 ? 'critico' : 'atencao',
+          title: 'Queda de tráfego',
+          desc: `Sessões caíram ${Math.abs(d.deltaPct)}% comparando as duas metades do período selecionado.`,
+        });
+      } else if (d.deltaPct >= 30) {
+        alerts.push({
+          sev: 'info',
+          title: 'Crescimento forte de tráfego',
+          desc: `Sessões cresceram ${d.deltaPct}% no período — vale entender o que impulsionou esse resultado.`,
+        });
+      }
+      if (d.bounceRate >= 70) {
+        alerts.push({
+          sev: 'atencao',
+          title: 'Taxa de rejeição alta',
+          desc: `A taxa de rejeição está em ${d.bounceRate}% no período — acima do recomendado.`,
+        });
+      }
+    }
+
+    // 2. Core Web Vitals críticos
+    const perf = await fetchPerformanceReal(companyId);
+    if (perf) {
+      if (vitalStatus('lcp', perf.lcp).label === 'Crítico') {
+        alerts.push({ sev: 'atencao', title: 'LCP crítico', desc: `O tempo de carregamento principal (LCP) está em ${perf.lcp}s — acima de 4s é considerado crítico pelo Google.` });
+      }
+      if (vitalStatus('cls', perf.cls).label === 'Crítico') {
+        alerts.push({ sev: 'atencao', title: 'CLS crítico', desc: `A estabilidade visual (CLS) está em ${perf.cls} — acima de 0.25 é considerado crítico.` });
+      }
+    }
+  }
+
+  // 3. Search Console — compara com o período anterior equivalente
+  if (isGscReal) {
+    const rangeLen = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+    const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - rangeLen + 1);
+    const fmt = (dt) => dt.toISOString().slice(0, 10);
+
+    const [{ data: curRows }, { data: prevRows }] = await Promise.all([
+      sb.from('gsc_daily_metrics').select('clicks, position').eq('company_id', companyId).gte('date', start).lte('date', end),
+      sb.from('gsc_daily_metrics').select('clicks, position').eq('company_id', companyId).gte('date', fmt(prevStart)).lte('date', fmt(prevEnd)),
+    ]);
+    if (curRows?.length && prevRows?.length) {
+      const curClicks = curRows.reduce((s, r) => s + r.clicks, 0);
+      const prevClicks = prevRows.reduce((s, r) => s + r.clicks, 0);
+      const curPos = curRows.reduce((s, r) => s + r.position, 0) / curRows.length;
+      const prevPos = prevRows.reduce((s, r) => s + r.position, 0) / prevRows.length;
+      const clicksDeltaPct = prevClicks ? Math.round(((curClicks - prevClicks) / prevClicks) * 1000) / 10 : null;
+      const posDelta = Math.round((curPos - prevPos) * 10) / 10; // positivo = piorou
+
+      if (clicksDeltaPct != null && clicksDeltaPct <= -25) {
+        alerts.push({ sev: 'atencao', title: 'Queda de cliques na busca', desc: `Cliques orgânicos caíram ${Math.abs(clicksDeltaPct)}% frente ao período anterior equivalente.` });
+      }
+      if (posDelta >= 3) {
+        alerts.push({ sev: 'atencao', title: 'Posição média piorou no Google', desc: `A posição média piorou ${posDelta} posições frente ao período anterior equivalente.` });
+      } else if (posDelta <= -3) {
+        alerts.push({ sev: 'info', title: 'Posição média melhorou no Google', desc: `A posição média melhorou ${Math.abs(posDelta)} posições frente ao período anterior.` });
+      }
+    }
+  }
+
+  // 4. RD Station — inatividade no período
+  if (company.rd) {
+    const { data: leadRows } = await sb.from('rd_leads').select('leads_count').eq('company_id', companyId).gte('date', start).lte('date', end);
+    const totalLeads = (leadRows || []).reduce((s, r) => s + r.leads_count, 0);
+    if (totalLeads === 0) {
+      alerts.push({ sev: 'atencao', title: 'Sem leads no período', desc: 'Nenhum lead foi registrado via RD Station no período selecionado.' });
+    }
+  }
+
+  return alerts;
+}
+
+function mockAlerts(companyId) {
+  const r = seed(companyId + 'alerts');
   const templates = [
     { sev:'critico', title:'Queda abrupta de tráfego', desc:'Sessões caíram mais de 30% na última semana em relação à média do mês.' },
     { sev:'atencao',  title:'Página lenta com muito tráfego', desc:'A página de destino principal está acima do limite aceitável de LCP.' },
@@ -1722,13 +1807,26 @@ function renderAlertas() {
     { sev:'info',      title:'Conteúdo com bom desempenho em IA', desc:'Um artigo tem mais referências vindas de IA generativa do que de busca tradicional.' },
   ];
   const chosen = templates.filter(() => r() > 0.3);
+  return chosen.length ? chosen : templates.slice(0, 1);
+}
+
+async function renderAlertas() {
+  destroyCharts();
+  const myToken = renderToken;
+  document.getElementById('content').innerHTML = `<div class="card">Carregando…</div>`;
+  const company = COMPANIES.find(c => c.id === activeCompany);
+  const isReal = GA4_REAL_COMPANIES.has(activeCompany) || GSC_REAL_COMPANIES.has(activeCompany) || company.rd;
+  const alerts = isReal ? await fetchAlertsReal(activeCompany, company) : mockAlerts(activeCompany);
+  if (myToken !== renderToken) return;
+
   document.getElementById('content').innerHTML = `
+    ${!isReal ? `<div class="stub-tag" style="margin-bottom:12px">Dados de exemplo — nenhuma fonte real conectada para esta empresa</div>` : ''}
     <div class="alert-feed">
-      ${(chosen.length ? chosen : templates.slice(0,1)).map(a => `
+      ${alerts.length ? alerts.map(a => `
         <div class="alert-card">
           <div class="alert-sev ${a.sev}"></div>
           <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
-        </div>`).join('')}
+        </div>`).join('') : `<div class="card"><div class="section-title">Nenhum alerta no momento</div><div class="section-sub" style="margin:0">Todos os indicadores monitorados estão dentro do esperado para o período selecionado.</div></div>`}
     </div>
   `;
 }
@@ -2151,6 +2249,17 @@ async function renderSocial() {
   const latestByChannel = {};
   Object.entries(liveChannels).forEach(([slug, d]) => {
     if (!d || d.error) return;
+    if (slug === 'tiktok') {
+      latestByChannel.tiktok = {
+        channel: 'tiktok',
+        videoCount: d.videoCount,
+        views: d.views,
+        likes: d.likes,
+        comments: d.comments,
+        shares: d.shares,
+      };
+      return;
+    }
     latestByChannel[slug] = {
       channel: slug,
       followers: d.followers,
@@ -2190,7 +2299,7 @@ async function renderSocial() {
     const color = CHANNEL_COLORS[c.channel] || '#98a0aa';
     const isTiktok = c.channel === 'tiktok';
     const posts = (postsByChannel[c.channel] || []).slice(0, 3);
-    const engagement = c.engagement ?? engagementByChannel[c.channel] ?? 0;
+    const engagement = isTiktok ? (c.likes || 0) + (c.comments || 0) + (c.shares || 0) : (c.engagement ?? engagementByChannel[c.channel] ?? 0);
 
     return `
     <div class="social-block" style="border-left-color:${color}">
@@ -2199,19 +2308,35 @@ async function renderSocial() {
         <div class="cap" style="margin:0">${label}</div>
       </div>
       <div class="kpis">
+        ${isTiktok ? `
         <div class="kpi">
-          <div class="v">${isTiktok ? '—' : fmtNum(c.followers)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Seguidores (indisponível nesta rede)' : 'Seguidores'}</div>
+          <div class="v">${fmtNum(c.videoCount)}</div>
+          <div class="l">Vídeos publicados no período</div>
         </div>
         <div class="kpi">
-          <div class="v">${isTiktok ? '—' : fmtNum(c.reach)}</div>
-          <div class="l ${isTiktok ? 'muted' : ''}">${isTiktok ? 'Alcance (indisponível nesta rede)' : 'Alcance no período'}</div>
+          <div class="v">${fmtNum(c.views)}</div>
+          <div class="l">Visualizações no período</div>
         </div>
         <div class="kpi">
           <div class="v">${engagement ? fmtNum(engagement) : '—'}</div>
-          <div class="l ${engagement ? '' : 'muted'}">${engagement ? 'Engajamento (curtidas + comentários + compart.)' : (isTiktok ? 'Engajamento (indisponível nesta rede)' : 'Engajamento')}</div>
+          <div class="l ${engagement ? '' : 'muted'}">Engajamento (curtidas + comentários + compart.)</div>
         </div>
+        ` : `
+        <div class="kpi">
+          <div class="v">${fmtNum(c.followers)}</div>
+          <div class="l">Seguidores</div>
+        </div>
+        <div class="kpi">
+          <div class="v">${fmtNum(c.reach)}</div>
+          <div class="l">Alcance no período</div>
+        </div>
+        <div class="kpi">
+          <div class="v">${engagement ? fmtNum(engagement) : '—'}</div>
+          <div class="l ${engagement ? '' : 'muted'}">${engagement ? 'Engajamento (curtidas + comentários + compart.)' : 'Engajamento'}</div>
+        </div>
+        `}
       </div>
+      ${isTiktok ? `<div class="section-sub" style="margin-top:-14px; margin-bottom:20px">Seguidores e alcance de conta não estão disponíveis para o TikTok nesta integração — só métricas por vídeo.</div>` : ''}
       ${c.channel === 'instagram_business' ? `
         <div class="kpis" style="margin-top:20px">
           <div class="kpi">
