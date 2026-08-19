@@ -1753,13 +1753,19 @@ async function fetchIntegrationHealth() {
   return result;
 }
 
-function healthStatus(dateStr) {
+function healthStatus(dateStr, thresholds = { ok: 2, warn: 6 }) {
   if (!dateStr) return { color: 'var(--ink-3)', text: 'sem dado' };
   const days = Math.floor((Date.now() - new Date(dateStr + 'T00:00:00')) / 86400000);
-  if (days <= 2) return { color: 'var(--up)', text: dateStr };
-  if (days <= 6) return { color: 'var(--amb)', text: `${dateStr} (${days}d)` };
+  if (days <= thresholds.ok) return { color: 'var(--up)', text: dateStr };
+  if (days <= thresholds.warn) return { color: 'var(--amb)', text: `${dateStr} (${days}d)` };
   return { color: 'var(--dn)', text: `${dateStr} (${days}d atrás)` };
 }
+
+// Search Console sempre tem 2-3 dias de atraso natural do próprio Google —
+// não é um problema de sincronização, então usamos uma tolerância maior.
+const HEALTH_THRESHOLDS = {
+  gsc: { ok: 4, warn: 8 },
+};
 
 async function renderAdmin() {
   const myToken = renderToken;
@@ -1785,7 +1791,7 @@ async function renderAdmin() {
   document.getElementById('content').innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="section-title">Saúde das integrações</div>
-      <div class="section-sub">Data da última sincronização com dado real, por empresa. 🟢 até 2 dias · 🟡 3-6 dias · 🔴 7+ dias ou sem dado.</div>
+      <div class="section-sub">Data da última sincronização com dado real, por empresa. 🟢 até 2 dias · 🟡 3-6 dias · 🔴 7+ dias ou sem dado. Search Console usa tolerância maior (🟢 até 4d · 🟡 até 8d) por causa do atraso natural de 2-3 dias do próprio Google.</div>
       <table class="rank">
         <thead><tr><th>Empresa</th>${sourceKeys.map(k => `<th>${health[k].label}</th>`).join('')}</tr></thead>
         <tbody>
@@ -1793,7 +1799,7 @@ async function renderAdmin() {
             <td><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c.dot};margin-right:8px"></span>${c.name}</td>
             ${sourceKeys.map(k => {
               if (k === 'rd' && !c.rd) return `<td style="color:var(--ink-3)">—</td>`;
-              const st = healthStatus(health[k].byCompany[c.id]);
+              const st = healthStatus(health[k].byCompany[c.id], HEALTH_THRESHOLDS[k]);
               return `<td><span class="status-dot" style="background:${st.color}"></span>${st.text}</td>`;
             }).join('')}
           </tr>`).join('')}
